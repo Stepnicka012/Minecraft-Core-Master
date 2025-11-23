@@ -679,16 +679,25 @@ function getClientJarPath(root: string, version: string, manifest: VersionManife
     return override.minecraftJar;
   }
   
-  const versionDir = override?.directory || resolve(root, "versions", version);
+  function getBaseDir(): string {
+    if (override?.directory) {
+      return override.directory;
+    }
+    if (manifest.inheritsFrom) {
+      return resolve(root, "versions", manifest.inheritsFrom);
+    }
+    return resolve(root, "versions", version);
+  }
+  
+  const baseDir = getBaseDir();
   
   if (manifest.jar) { 
-    return resolve(versionDir, `${manifest.jar}.jar`); 
+    return resolve(baseDir, `${manifest.jar}.jar`); 
   }
   if (manifest.inheritsFrom) { 
-    const parentDir = override?.directory || resolve(root, "versions", manifest.inheritsFrom);
-    return resolve(parentDir, `${manifest.inheritsFrom}.jar`); 
+    return resolve(baseDir, `${manifest.inheritsFrom}.jar`); 
   }
-  return resolve(versionDir, `${version}.jar`);
+  return resolve(baseDir, `${version}.jar`);
 }
 
 function getNativesDir(root: string, version: string, manifest: VersionManifest, override?: { natives?: string; directory?: string }): string {
@@ -1308,4 +1317,5 @@ export async function ArgumentsBuilder(options: LauncherOptions): Promise<Launch
     emitter.emit("launch-failed", { error, totalTime: stats.totalTime });
     throw error;
   }
+
 }

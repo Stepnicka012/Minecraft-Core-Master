@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { promises as fs } from "node:fs";
-import { resolve } from "node:path";
+import path,{ basename, resolve } from "node:path";
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { LibraryBuyer } from "./LibraryBuyer.js";
 
-// Interfaces y tipos completos
 export interface LauncherEvents {
   'status': (message: string) => void;
   'progress': (data: { type: string; message: string }) => void;
@@ -159,12 +159,7 @@ export interface LaunchResult {
   };
 }
 
-// Definiciones de tipos del sistema operativo
-const OS_TYPES = {
-  windows: "windows",
-  linux: "linux",
-  osx: "osx"
-} as const;
+const OS_TYPES = { windows: "windows", linux: "linux", osx: "osx" } as const;
 
 type OSType = typeof OS_TYPES[keyof typeof OS_TYPES];
 
@@ -315,6 +310,62 @@ function mergeManifests(parent: VersionManifest, child: VersionManifest): Versio
   return merged;
 }
 
+async function handleCustomVersion(options: LauncherOptions, manifest: VersionManifest, emitter: EventEmitter): Promise<void> {
+  const isForge = manifest.libraries?.some(lib => 
+    lib.name.includes('net.minecraftforge:forge:') ||
+    lib.name.includes('net.minecraftforge:fmlloader:')
+  );
+  
+  const isFabric = manifest.libraries?.some(lib => 
+    lib.name.includes('net.fabricmc:fabric-loader:')
+  );
+  
+  const isCustom = isForge || isFabric || 
+    manifest.mainClass?.includes('forge') ||
+    manifest.id?.includes('forge');
+
+  if (!isCustom) return;
+
+  emitter.emit("debug", {
+    type: "custom-version-detected",
+    isForge,
+    isFabric,
+    mainClass: manifest.mainClass,
+    version: manifest.id
+  });
+
+  const libraryBuyer = new LibraryBuyer({
+    root: options.gameRoot,
+    version: options.version,
+    forceDownload: false,
+    concurry: 10
+  });
+
+  libraryBuyer.on("LibraryMissing", (data: any) => {
+    emitter.emit("progress", { 
+      type: "library-missing", 
+      message: `Falta: ${data.library}` 
+    });
+  });
+
+  libraryBuyer.on("FileStart", (data: any) => {
+    emitter.emit("progress", { 
+      type: "downloading", 
+      message: `Descargando: ${basename(data.filePath)}` 
+    });
+  });
+
+  libraryBuyer.on("FileSuccess", (data: any) => {
+    emitter.emit("progress", { 
+      type: "downloaded", 
+      message: `Listo: ${basename(data.filePath)}` 
+    });
+  });
+
+  // Ejecutar descarga
+  await libraryBuyer.ensureLibraries();
+}
+
 function getAssetsRoot(options: LauncherOptions, manifest: VersionManifest): string {
   if (options.override?.assetRoot) {
     return options.override.assetRoot;
@@ -356,11 +407,33 @@ function processJVMArgument(arg: string, options: LauncherOptions, nativesDir: s
     .replace(/\$\{classpath_separator\}/g, process.platform === "win32" ? ";" : ":")
     .replace(/\$\{launcher_name\}/g, launcherName)
     .replace(/\$\{launcher_version\}/g, launcherVersion)
-    .replace(/\$\{classpath\}/g, "::")
+    // .replace(/\$\{classpath\}/g, "::")
     .replace(/\$\{library_directory\}/g, libraryRoot)
     .replace(/\$\{game_directory\}/g, options.override?.gameDirectory || options.gameRoot);
 }
-
+function removeAllDuplicateArgs(args: string[]): string[] {
+  const result: string[] = [];
+  const seenArgs = new Set();
+  
+  for (let i = 0; i < args.length; i++) {
+    const current = args[i];
+    
+    if (current?.startsWith('--')) {
+      if (seenArgs.has(current)) {
+        // Saltar este argumento y su valor (si tiene)
+        if (i + 1 < args.length && !args[i + 1]?.startsWith('--')) {
+          i++; // Saltar el valor también
+        }
+        continue;
+      }
+      seenArgs.add(current);
+    }
+    
+    result.push(current || "");
+  }
+  
+  return result;
+}
 function buildGameArgs(options: LauncherOptions, manifest: VersionManifest, emitter: EventEmitter): string[] {
   const gameArgs: string[] = [];
   
@@ -424,7 +497,9 @@ function buildGameArgs(options: LauncherOptions, manifest: VersionManifest, emit
   handleWindowArguments(gameArgs, options.window);
   handleCustomArguments(gameArgs, options.MC_ARGS);
   
-  const finalArgs = cleanArguments(gameArgs);
+  
+  const cleanedArgs = cleanArguments(gameArgs);
+  const finalArgs = removeAllDuplicateArgs(cleanedArgs);
   
   if (options.enableDebug) {
     emitter.emit("debug", {
@@ -436,13 +511,6 @@ function buildGameArgs(options: LauncherOptions, manifest: VersionManifest, emit
       originalGameRoot: options.gameRoot,
       overrideGameDirectory: options.override?.gameDirectory
     });
-
-    console.log("=== DEBUG: RUTAS CRÍTICAS ===");
-    console.log("Directorio base (gameRoot):", options.gameRoot);
-    console.log("Directorio del juego (gameDirectory):", gameDirectory);
-    console.log("Directorio de assets:", assetsRootPath);
-    console.log("Índice de assets:", assetsIndexName);
-    console.log("===========================================");
   }
   
   return finalArgs;
@@ -618,11 +686,8 @@ function isArgumentRequiresValue(argument: string): boolean {
 function processGameArgument(arg: string, options: LauncherOptions, manifest: VersionManifest): string {
   const user = options.user;
   
-  // 🔥 CORRECCIÓN: Obtener las rutas ABSOLUTAS correctas
   const assetsRootPath = getAssetsRoot(options, manifest);
   const assetsIndexName = getAssetsIndexName(options, manifest);
-  
-  // 🔥 CRÍTICO: Usar resolve() para obtener la ruta absoluta correcta
   const gameDirectory = options.override?.gameDirectory || resolve(options.gameRoot);
   
   const quickPlayPath = options.MC_ARGS?.quickPlayPath as string || "";
@@ -749,6 +814,8 @@ async function processLibraries(
   const nativesDir = getNativesDir(root, version, manifest, override);
   const libraryRoot = override?.libraryRoot || resolve(root, "libraries");
   
+  const libraryConflicts = new Map();
+  
   try {
     await fs.mkdir(nativesDir, { recursive: true });
   } catch (error) { }
@@ -781,6 +848,31 @@ async function processLibraries(
         console.log(`Skipping library due to rules: ${lib.name}`);
       }
       continue;
+    }
+
+    if (lib.name.includes('com.google.guava:guava:')) {
+      const versionMatch = lib.name.match(/com\.google\.guava:guava:([\d.]+)/);
+      if (versionMatch) {
+        const guavaVersion = versionMatch[1];
+        if (guavaVersion === '15.0') {
+          if (options?.enableDebug) {
+            console.log(`🚫 BLOQUEANDO Guava 15.0 - Causa conflicto con Forge`);
+          }
+          continue;
+        }
+        if (!libraryConflicts.has('guava')) {
+          libraryConflicts.set('guava', new Set());
+        }
+        const guavaVersions = libraryConflicts.get('guava');
+        
+        if (guavaVersions.has(guavaVersion)) {
+          if (options?.enableDebug) {
+            console.log(`🔄 SKIPPING duplicate Guava version: ${guavaVersion}`);
+          }
+          continue;
+        }
+        guavaVersions.add(guavaVersion);
+      }
     }
 
     if (isLegacy) {
@@ -848,6 +940,21 @@ async function processLibraries(
           const nativePath = resolve(libraryRoot, nativeArtifact.path);
           try {
             await fs.access(nativePath);
+            
+            const fileName = path.basename(nativePath);
+            const destPath = resolve(nativesDir, fileName);
+            
+            try {
+              await fs.copyFile(nativePath, destPath);
+              if (options?.enableDebug) {
+                console.log(`📦 Native library copied: ${fileName} -> ${nativesDir}`);
+              }
+            } catch (copyError) {
+              if (options?.enableDebug) {
+                console.warn(`❌ Error copiando librería nativa: ${fileName}`, copyError);
+              }
+            }
+            
             libraryCount++;
             
             if (options?.enableDebug) {
@@ -894,6 +1001,38 @@ async function processLibraries(
           console.warn(`Librería no encontrada: ${libPath}`);
         }
       }
+    }
+  }
+
+  const guavaLibraries = classpath.filter(path => path.includes('guava'));
+  if (guavaLibraries.length > 1 && options?.enableDebug) {
+    console.log(`⚠️  ADVERTENCIA: Aún hay ${guavaLibraries.length} versiones de Guava:`);
+    guavaLibraries.forEach(lib => console.log(`   - ${lib}`));
+
+    const guava15 = classpath.find(path => path.includes('guava-15.0'));
+    if (guava15) {
+      const index = classpath.indexOf(guava15);
+      classpath.splice(index, 1);
+      libraryCount--;
+      console.log(`🗑️  ELIMINADO: ${guava15}`);
+    }
+  }
+
+  if (options?.enableDebug) {
+    try {
+      const nativeFiles = await fs.readdir(nativesDir);
+      console.log(`📁 Archivos en directorio de nativas (${nativeFiles.length}):`);
+      nativeFiles.forEach(file => console.log(`   - ${file}`));
+      
+      const criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8_64.dll'];
+      const missingNatives = criticalNatives.filter(native => !nativeFiles.includes(native));
+      if (missingNatives.length > 0) {
+        console.log(`❌ FALTAN archivos nativos críticos: ${missingNatives.join(', ')}`);
+      } else {
+        console.log(`✅ Todos los archivos nativos críticos presentes`);
+      }
+    } catch (error) {
+      console.warn(`❌ No se pudo leer directorio de nativas: ${nativesDir}`);
     }
   }
 
@@ -1091,6 +1230,7 @@ export async function ArgumentsBuilder(options: LauncherOptions): Promise<Launch
     emitter.emit("phase-start", "manifest-load");
 
     const manifest = await loadVersionManifest(root, options.version, options.override);
+    await handleCustomVersion(options, manifest, emitter);
     const manifestTime = tracker.end("manifest-load");
 
     emitter.emit("phase-end", "manifest-load", manifestTime);
@@ -1237,7 +1377,7 @@ export async function ArgumentsBuilder(options: LauncherOptions): Promise<Launch
     const child = spawn(javaExec, finalArgs, {
       cwd: gameDirectory,
       stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
+      windowsHide: false,
       env: env
     });
 
@@ -1317,5 +1457,4 @@ export async function ArgumentsBuilder(options: LauncherOptions): Promise<Launch
     emitter.emit("launch-failed", { error, totalTime: stats.totalTime });
     throw error;
   }
-
 }

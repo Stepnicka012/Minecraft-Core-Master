@@ -5,8 +5,9 @@ import { MinecraftLaunch } from '../../dist/Components/Launch.js';
 const User = await Mojang.login("Stepnicka012");
 const basicLauncher = new MinecraftLaunch({
     gameRoot: '.minecraft',
-    version: '1.12.2',
+    version: '1.7.10-Forge10.13.4.1614-1.7.10',
     user: User,
+    java: 'C:/Program Files/Java/jre1.8.0_471/bin/java.exe',
     memory: {
         min: '512M',
         max: '4G'

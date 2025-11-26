@@ -21,19 +21,19 @@ const { Mojang } = require('../../dist/index.js');
 
         // 🔹 ES: Validar que el token sigue activo
         // 🔹 EN: Validate that the token is still valid
-        const isValid = await Mojang.validate(user);
-        console.log("Token válido:", isValid);
+        // const isValid = await Mojang.validate(user);
+        // console.log("Token válido:", isValid);
 
-        // 🔹 ES: Refrescar el token si es necesario
-        // 🔹 EN: Refresh the token if needed
-        if (!isValid) {
-            const refreshed = await Mojang.refresh(user);
-            if (refreshed.error) {
-                console.error("Error al refrescar token:", refreshed.message);
-                return;
-            }
-            console.log("Token refrescado:", refreshed);
-        }
+        // // 🔹 ES: Refrescar el token si es necesario
+        // // 🔹 EN: Refresh the token if needed
+        // if (!isValid) {
+        //     const refreshed = await Mojang.refresh(user);
+        //     if (refreshed.error) {
+        //         console.error("Error al refrescar token:", refreshed.message);
+        //         return;
+        //     }
+        //     console.log("Token refrescado:", refreshed);
+        // }
 
         // 🔹 ES: Simulación de uso del usuario logueado en la app
         // 🔹 EN: Simulate using the logged-in user in your app
@@ -41,8 +41,8 @@ const { Mojang } = require('../../dist/index.js');
 
         // 🔹 ES: Cerrar sesión cuando el usuario se desconecta
         // 🔹 EN: Logout when the user disconnects
-        const loggedOut = await Mojang.signout(user);
-        console.log("Sesión cerrada:", loggedOut);
+        // const loggedOut = await Mojang.signout(user);
+        // console.log("Sesión cerrada:", loggedOut);
 
     } catch (err) {
         console.error("Error inesperado:", err);

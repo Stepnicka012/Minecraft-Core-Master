@@ -355,7 +355,6 @@ export default class Microsoft {
 	}
 
 	/**
-	 * @description
 	 * Obtiene el perfil de Minecraft del usuario, incluyendo skins y capas en base64.
 	 * ----
 	 * Fetches player's Minecraft profile including skins and capes converted to base64.

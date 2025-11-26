@@ -12,9 +12,9 @@ const advancedLauncher = new MinecraftLaunch({
         max: '4G'
     },
     window: {
-        width: 1280,
-        height: 720,
-        fullscreen: false
+      width: 1280,
+      height: 720,
+      fullscreen: false
     },
     // TODOS los eventos activados
     enableDetailedEvents: true,

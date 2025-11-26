@@ -1,6 +1,6 @@
 {
   "name": "minecraft-core-master",
-  "version": "1.1.02",
+  "version": "1.2.2",
   "description": "Núcleo avanzado para launchers de Minecraft. Descarga, instala y ejecuta versiones de Minecraft, assets, librerías, Java y loaders de forma automática y eficiente.",
   "engineStrict": true,
   "license": "MIT",

@@ -100,33 +100,32 @@ Downloader.on("Done", () => {
 
     await Downloader.StartDownload({
         root: ".minecraft",
-        version: "1.21.10",
+        version: "1.5.2",
         concurry: 8, // NO sobre pasarse oh tira error por mucha peticiones ala red
-        maxRetries: 5,
-        installJava: true,
-        startOnFinish: false,
-        // sections:{
-        //     Client:{
-        //         concurry: 5,
-        //         maxRetries: 10,
-        //         decodeJson: false,
-        //     },
-        //     Natives:{
-        //         concurry: 5,
-        //         maxRetries: 10,
-        //     },
-        //     Libraries:{
-        //         concurry: 5,
-        //         maxRetries: 10,
-        //     },
-        //     Runtime:{
-        //         concurry: 5,
-        //         maxRetries: 10,
-        //     },
-        //     Assets:{
-        //         concurry: 5,
-        //         maxRetries: 10,
-        //     }
-        // }
+        maxRetries: 15,
+        installJava: false,
+        sections:{
+            Client:{
+                // concurry: 5,
+                // maxRetries: 10,
+                decodeJson: true,
+            },
+            // Natives:{
+            //     concurry: 5,
+            //     maxRetries: 10,
+            // },
+            // Libraries:{
+            //     concurry: 5,
+            //     maxRetries: 10,
+            // },
+            // Runtime:{
+            //     concurry: 5,
+            //     maxRetries: 10,
+            // },
+            // Assets:{
+            //     concurry: 5,
+            //     maxRetries: 10,
+            // }
+        }
     });
 })();

@@ -1,4 +1,4 @@
-import { Mojang } from '../../dist/Index.js'; 
+import { Mojang } from '../../dist/index.js'; 
 import { MinecraftLaunch } from '../../dist/Components/Launch.js';
 
 // Configuración básica

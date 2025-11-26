@@ -184,20 +184,31 @@ export class AssetsDownloader extends EventEmitter {
   public async start() {
     this.emit("Start");
     const dirs = await prepareDirs(this.root);
-    const { indexBuf, objects, assetIndexName  } = await this.getVersionIndex();
-  await writeFile(join(dirs.indexes, `${assetIndexName}.json`), indexBuf);
+    const { indexBuf, objects, assetIndexName } = await this.getVersionIndex();
+    
+    const isLegacy = this.shouldDownloadResources();
+    
     let resourceTasks: any[] = [];
-    if (this.shouldDownloadResources()) {
+    let objectTasks: any[] = [];
+
+    if (isLegacy) {
       const resourcesDir = join(this.root, "resources");
       await mkdir(resourcesDir, { recursive: true });
-      (dirs as any).resources = resourcesDir;
+      (dirs as any).resources = resourcesDir; 
+
+      await writeFile(join(resourcesDir, "resources.json"), indexBuf);
+  
       resourceTasks = this.downloadAllResources(objects, dirs);
+    } else {
+        await writeFile(join(dirs.indexes, `${assetIndexName}.json`), indexBuf);
+        objectTasks = this.downloadAllObjects(objects, dirs);
     }
-    const objectTasks = this.downloadAllObjects(objects, dirs);
+    
     await Promise.all([
-      ...resourceTasks,
-      ...objectTasks
+        ...resourceTasks,
+        ...objectTasks
     ]);
+    
     this.emit("Done");
   }
 }

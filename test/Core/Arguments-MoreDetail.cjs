@@ -225,20 +225,22 @@ async function startMinecraftGame() {
     logger.log('🔐', 'green', 'AUTENTICACIÓN', 
       `Usuario autenticado: ${userAccount.name}`, {
         'UUID': userAccount.uuid,
-        'Tipo de cuenta': userAccount.userType || 'mojang',
-        'Token acceso': userAccount.accessToken ? '✓ Presente' : '✗ No disponible',
+        'Tipo de cuenta': userAccount.meta.type || 'mojang',
+        'Token acceso': userAccount.access_token ? '✓ Presente' : '✗ No disponible',
         'Timestamp': new Date().toISOString()
       });
 
     const { emitter, stats, pid, kill } = await ArgumentsBuilder({
       gameRoot: ".minecraft",
-      version: "1.21.10",
-      java: 'java',
+      version: "1.7.10",
+      // java: 'java',
       // java: 'runtime/java-21.0.7/bin/javaw.exe',
-      // java: 'C:/Program Files/Java/jre1.8.0_471/bin/java.exe',
+      // java: 'runtime/java-8u51-cacert462b08/bin/javaw.exe',
+      java: 'C:/Program Files/Java/jre1.8.0_471/bin/java.exe',
       memory: { max: "4G", min: "512M" },
       window: { width: 854, height: 480, fullscreen: false },
       enableDebug: true,
+      // enforceSandbox: true,
       enableSpeedMetrics: true,
       user: userAccount,
     });

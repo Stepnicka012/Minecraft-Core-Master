@@ -24,58 +24,103 @@ export interface LauncherEvents {
   'exit': (data: { code?: number; signal?: string }) => void;
   'error': (error: Error) => void;
 }
-
 export interface LauncherOptions {
+  /** Carpeta raíz donde está instalado Minecraft (Root folder where Minecraft is installed) */
   gameRoot: string;
+  
+  /** Versión de Minecraft a lanzar (Minecraft version to launch) */
   version: string;
-
+  
+  /** Ruta del ejecutable de Java (Path to Java executable) */
   java?: string;
+
+  /** Configuración de memoria para la JVM (JVM memory configuration) */
   memory?: {
+    /** Memoria mínima (Minimum memory) */
     min?: string;
+    /** Memoria máxima (Maximum memory) */
     max?: string;
   };
+  
+  /** Configuración de la ventana del juego (Game window configuration) */
   window?: {
+    /** Ancho de la ventana (Window width) */
     width?: number;
+    /** Alto de la ventana (Window height) */
     height?: number;
+    /** Si debe iniciarse en pantalla completa (Whether to start in fullscreen) */
     fullscreen?: boolean;
   };
+  
+  /** Sobrescrituras de rutas y archivos del juego (Overrides for game paths and files) */
   override?: {
+    /** Directorio donde se ejecuta el juego (Directory where the game runs) */
     gameDirectory?: string;
+    /** Ruta del JAR de Minecraft (Minecraft JAR path) */
     minecraftJar?: string;
+    /** Archivo JSON de versión personalizado (Custom version JSON file) */
     versionJson?: string;
+    /** Carpeta de assets (Assets folder) */
     assetRoot?: string;
+    /** Índice de assets (Assets index) */
     assetIndex?: string;
+    /** Carpeta de librerías (Libraries folder) */
     libraryRoot?: string;
+    /** Carpeta de nativos (Natives folder) */
     natives?: string;
+    /** Carpeta base de esta versión (Base folder of this version) */
     directory?: string;
   };
-  JVM_ARGS?: string[];
-  MC_ARGS?: Record<string, string | boolean | number>;
 
+  /** Configuración de proxy para la conexión a Internet (Proxy configuration for internet connection) */
   proxy?: {
+    /** Host del proxy (Proxy host) */
     host: string;
+    /** Puerto del proxy (Proxy port) */
     port: number;
+    /** Usuario opcional (Optional username) */
     username?: string;
+    /** Contraseña opcional (Optional password) */
     password?: string;
+    /** Tipo de proxy (Proxy type) */
     type?: "socks4" | "socks5" | "http";
   };
 
-  user: {
-    name: string;
-    uuid?: string;
-    accessToken?: string;
-    userType?: "mojang" | "legacy" | "msa";
-  };
+  /** Información del usuario (User information) */
+  user: User;
 
+  /** Habilitación o deshabilitación de features opcionales (Enable or disable optional features) */
   features?: Record<string, boolean>;
 
+  /** Nombre del launcher a mostrar en logs o interfaz (Launcher name to display in logs or UI) */
   launcherName?: string;
+  /** Versión del launcher (Launcher version) */
   launcherVersion?: string;
 
+  /** Forzar sandbox de Java (Enforce Java sandbox) */
   enforceSandbox?: boolean;
+  /** Habilitar debug detallado (Enable detailed debug) */
   enableDebug?: boolean;
+  /** Habilitar métricas de velocidad y fases (Enable speed and phase metrics) */
   enableSpeedMetrics?: boolean;
+  
+  /** Argumentos personalizados de la JVM (Custom JVM arguments) */
+  JVM_ARGS?: string[];
+  /** Argumentos personalizados del juego (Custom game arguments) */
+  MC_ARGS?: Record<string, string | boolean | number>;
 }
+
+export interface User {
+  access_token?: string;
+  client_token?: string;
+  uuid?: string;
+  name?: string;
+  user_profiles?: string;
+  meta?: {
+    online?: boolean;
+    type?: string;
+  };
+};
 
 export interface AssetIndex {
   id: string;
@@ -470,14 +515,14 @@ function buildGameArgs(options: LauncherOptions, manifest: VersionManifest, emit
     }
   }
 
-  ensureArgumentWithValue(gameArgs, '--username', options.user.name);
+  ensureArgumentWithValue(gameArgs, '--username', options.user.name || "Player");
   ensureArgumentWithValue(gameArgs, '--version', options.version);
   ensureArgumentWithValue(gameArgs, '--gameDir', gameDirectory);
   ensureArgumentWithValue(gameArgs, '--assetsDir', assetsRootPath);
   ensureArgumentWithValue(gameArgs, '--assetIndex', assetsIndexName);
   ensureArgumentWithValue(gameArgs, '--uuid', options.user.uuid || "00000000-0000-0000-0000-000000000000");
-  ensureArgumentWithValue(gameArgs, '--accessToken', options.user.accessToken || "0");
-  ensureArgumentWithValue(gameArgs, '--userType', options.user.userType || "mojang");
+  ensureArgumentWithValue(gameArgs, '--accessToken', options.user.access_token || "0");
+  ensureArgumentWithValue(gameArgs, '--userType', options.user.meta?.type || "mojang");
   
   const userPropertiesIndex = gameArgs.indexOf('--userProperties');
   if (userPropertiesIndex !== -1) {
@@ -699,15 +744,16 @@ function processGameArgument(arg: string, options: LauncherOptions, manifest: Ve
     return arg;
   }
   
-  return arg.replace(/\$\{([^}]+)\}/g, (_, key) => {
-    const trimmedKey = key.trim();
+  return arg.replace(/\$\{([^}]+)\}/g, (key: string): string => {
+    const trimmedKey = key.replace(/\$\{|\}/g, '').trim();
+    
     
     switch (trimmedKey) {
-      case "auth_player_name": return user.name;
+      case "auth_player_name": return user.name || "Player";
       case "auth_uuid": return user.uuid || "00000000-0000-0000-0000-000000000000";
-      case "auth_access_token": return user.accessToken || "0";
+      case "auth_access_token": return user.access_token || "0";
       case "auth_xuid": return "0";
-      case "user_type": return user.userType || "mojang";
+      case "user_type": return user.meta?.type || "mojang";
       case "version_name": return options.version;
       case "version_type": return manifest.type || "release";
       case "game_directory": return gameDirectory;
@@ -853,25 +899,54 @@ async function processLibraries(
     if (lib.name.includes('com.google.guava:guava:')) {
       const versionMatch = lib.name.match(/com\.google\.guava:guava:([\d.]+)/);
       if (versionMatch) {
-        const guavaVersion = versionMatch[1];
-        if (guavaVersion === '15.0') {
-          if (options?.enableDebug) {
-            console.log(`🚫 BLOQUEANDO Guava 15.0 - Causa conflicto con Forge`);
-          }
-          continue;
-        }
+        const currentVersion = versionMatch[1];
+        
+        // 1. Inicializar el set de registro (o usar 0.0 si no existe)
         if (!libraryConflicts.has('guava')) {
           libraryConflicts.set('guava', new Set());
         }
-        const guavaVersions = libraryConflicts.get('guava');
         
-        if (guavaVersions.has(guavaVersion)) {
+        const registeredVersions = libraryConflicts.get('guava');
+        
+        // Determinar la versión actualmente registrada
+        const existingVersion = registeredVersions.size > 0 
+          ? Array.from(registeredVersions)[0] as string
+          : '0.0';
+          
+        // Convertimos a entero para comparación simple (ej: '17.0' -> 17)
+        const currentMajor = parseInt(currentVersion?.split('.')[0] || '0');
+        const existingMajor = parseInt(existingVersion.split('.')[0] || '0');
+
+        // 2. Lógica de selección: Reemplazar si la actual es MAYOR
+        if (currentMajor > existingMajor) {
+          // Si encontramos una versión más moderna (ej: 17.0 después de 15.0), la registramos
           if (options?.enableDebug) {
-            console.log(`🔄 SKIPPING duplicate Guava version: ${guavaVersion}`);
+             console.log(`⬆️ UPGRADING Guava: ${existingVersion} -> ${currentVersion}. Priorizando para evitar errores de lanzamiento.`);
           }
-          continue;
+          // Limpiamos el registro anterior y añadimos la nueva versión
+          registeredVersions.clear(); 
+          registeredVersions.add(currentVersion);
+          
+        } else if (currentMajor < existingMajor) {
+           // Si la versión actual es antigua (ej: 15.0 después de 17.0), la saltamos
+           if (options?.enableDebug) {
+              console.log(`🔄 SKIPPING older Guava: ${currentVersion} (Keeping ${existingVersion})`);
+           }
+           continue; 
+           
+        } else if (registeredVersions.size > 0 && currentMajor === existingMajor) {
+           // Si es la misma versión y ya está registrada, la saltamos (evita duplicados exactos)
+           if (options?.enableDebug) {
+              console.log(`🔄 SKIPPING duplicate Guava version: ${currentVersion}`);
+           }
+           continue; 
         }
-        guavaVersions.add(guavaVersion);
+        
+        // Si llegamos a este punto y el Set sigue vacío (solo pasa en la primera iteración
+        // si la versión es válida, ej: 15.0 cuando existingMajor es 0), la añadimos.
+        if (registeredVersions.size === 0) {
+            registeredVersions.add(currentVersion);
+        }
       }
     }
 
@@ -1156,8 +1231,7 @@ function buildJVMArgs(
       proxy: options.proxy,
       isLegacy: isLegacy
     });
-  }
-
+  }  
   return jvmArgs;
 }
 
@@ -1279,7 +1353,7 @@ export async function ArgumentsBuilder(options: LauncherOptions): Promise<Launch
       libraryCount: libraryCount,
       isLegacy: isLegacyVersion(manifest)
     });
-
+    
     if (options.enableDebug) {
       const assetsRoot = getAssetsRoot(options, manifest);
       const assetsIndexName = getAssetsIndexName(options, manifest);

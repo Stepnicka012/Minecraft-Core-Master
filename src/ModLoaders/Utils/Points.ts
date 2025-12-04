@@ -1,8 +1,11 @@
 export function loader(type: string) {
   const data: Record<string, any> = {
     forge: {
+      latest: 'https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json',
       meta: 'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json',
-      installer: 'https://maven.minecraftforge.net/net/minecraftforge/forge/${version}/forge-${version}-installer.jar',
+			install: 'https://maven.minecraftforge.net/net/minecraftforge/forge/${version}/forge-${version}-installer.jar',
+			universal: 'https://maven.minecraftforge.net/net/minecraftforge/forge/${version}/forge-${version}-universal.jar',
+			client: 'https://maven.minecraftforge.net/net/minecraftforge/forge/${version}/forge-${version}-client.jar'
     },
     neoforge: {
       meta: 'https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge',
@@ -19,8 +22,8 @@ export function loader(type: string) {
       json: 'https://meta.legacyfabric.net/v2/versions/loader/${version}/${build}/profile/json'
     },
     quilt: {
-      meta: 'https://meta.quiltmc.org/v3/versions',
-      json: 'https://meta.quiltmc.org/v3/versions/loader/${version}/${build}/profile/json'
+			metaData: 'https://meta.quiltmc.org/v3/versions',
+			json: 'https://meta.quiltmc.org/v3/versions/loader/${version}/${build}/profile/json'
     },
     curseforge: {
       api: "https://api.curseforge.com/v1"

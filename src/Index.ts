@@ -1,10 +1,12 @@
 // Componentes
 import { AssetsDownloader } from "./Minecraft/Assets.js";
-import { ClientDownloader } from "./Minecraft/Version.js";
+import { ClientDownloader } from "./Minecraft/Client.js";
 import { RuntimeDownloader } from "./Minecraft/Runtime.js";
 import { LibraryBuyer } from "./Minecraft/LibraryBuyer.js";
 import { LibrariesDownloader } from "./Minecraft/Libraries.js";
 import { ArgumentsBuilder } from "./Minecraft/Arguments.js";
+// Componentes Servidores
+import ServerDownloader from './Minecraft/Server.js';
 // Principales
 import { MinecraftDownloader } from "./Components/Download.js";
 import { MinecraftLaunch } from "./Components/Launch.js";
@@ -23,6 +25,8 @@ export {
   ArgumentsBuilder as ArgumentsBuilder,
   RuntimeDownloader as RuntimeDownloader,
   LibrariesDownloader as LibrariesDownloader,
+  // Componentes Servidores
+  ServerDownloader as ServerDownloader,
   // Principales
   MinecraftLaunch as MinecraftLaunch,
   MinecraftDownloader as MinecraftDownloader,

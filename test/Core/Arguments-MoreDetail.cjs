@@ -1,4 +1,4 @@
-const { Mojang } = require("../../dist/index");
+const { Mojang } = require("../../dist/Index.js");
 const { ArgumentsBuilder } = require("../../dist/Minecraft/Arguments");
 
 const colors = {
@@ -231,18 +231,27 @@ async function startMinecraftGame() {
       });
 
     const { emitter, stats, pid, kill } = await ArgumentsBuilder({
-      gameRoot: ".minecraft",
-      version: "1.7.10",
-      // java: 'java',
+      gameRoot: "minecraft",
+      version: "1.12.2",
+      java: '/home/Stepnicka012/java/jre1.8.0_471/bin/java',
       // java: 'runtime/java-21.0.7/bin/javaw.exe',
       // java: 'runtime/java-8u51-cacert462b08/bin/javaw.exe',
-      java: 'C:/Program Files/Java/jre1.8.0_471/bin/java.exe',
+      // java: 'C:/Program Files/Java/jre1.8.0_471/bin/java.exe',
       memory: { max: "4G", min: "512M" },
       window: { width: 854, height: 480, fullscreen: false },
       enableDebug: true,
       // enforceSandbox: true,
       enableSpeedMetrics: true,
-      user: userAccount,
+      user: {
+        access_token: userAccount.accessToken,
+        client_token: userAccount.access_token,
+        uuid: userAccount.uuid,
+        name: userAccount.name,
+        meta: {
+          online:false,
+          type: "mojang"
+        },
+      },
     });
 
     // ========== CAPTURA COMPLETA DE TODOS LOS EVENTOS ==========

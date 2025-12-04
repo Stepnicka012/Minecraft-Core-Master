@@ -1,6 +1,6 @@
 const { LibrariesDownloader } = require("../../dist/Minecraft/Libraries");
 const downloader = new LibrariesDownloader({
-  version:"1.21.10",
+  version:"1.12.2",
   root:".minecraft",
   concurry: 50,
   maxRetries: 30,

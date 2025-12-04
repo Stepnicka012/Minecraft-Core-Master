@@ -53,6 +53,7 @@ export class AssetsDownloader extends EventEmitter {
   private paused = false;
   private stopped = false;
   private versionType: string | null = null;
+  private forceInstall = false;
   
   constructor(opts: AssetsDownloaderOptions) {
     super();
@@ -75,6 +76,12 @@ export class AssetsDownloader extends EventEmitter {
   stop() {
     this.stopped = true;
     this.emit("Stopped");
+  }
+
+  // Nueva función para forzar la instalación
+  setForceInstall(force: boolean) {
+    this.forceInstall = force;
+    this.emit("ForceInstallChanged", force);
   }
 
   private async waitIfPaused() {
@@ -106,6 +113,12 @@ export class AssetsDownloader extends EventEmitter {
     const { objects } = await this.getVersionIndex();
     let total = 0;
     for (const obj of Object.values(objects)) {
+      // Si forceInstall está activado, contar todos los bytes
+      if (this.forceInstall) {
+        total += obj.size;
+        continue;
+      }
+      
       const sha1 = obj.hash;
       const sub = sha1.slice(0, 2);
       const filePath = join(dirs.objects, sub, sha1);
@@ -128,6 +141,20 @@ export class AssetsDownloader extends EventEmitter {
         const url = `https://resources.download.minecraft.net/${sub}/${sha1}`;
         const savePath = join(dirs.resources, name);
         await mkdir(dirname(savePath), { recursive: true });
+        
+        // Verificar si el archivo ya existe (solo si no está forzado)
+        if (!this.forceInstall) {
+          try {
+            await stat(savePath);
+            // Archivo existe, emitir eventos para mantener consistencia
+            this.emit("FileStart", { type: "resource", name, size: obj.size });
+            this.emit("Bytes", obj.size); // Emitir bytes para mantener el progreso
+            this.emit("ResourceFile", name);
+            this.emit("FileEnd", { type: "resource", name });
+            return;
+          } catch {}
+        }
+        
         this.emit("FileStart", { type: "resource", name, size: obj.size });
         const buf = await download(url, this.maxRetries);
         await writeFile(savePath, buf);
@@ -147,10 +174,20 @@ export class AssetsDownloader extends EventEmitter {
         const sha1 = obj.hash;
         const sub = sha1.slice(0, 2);
         const savePath = join(dirs.objects, sub, sha1);
-        try {
-          await stat(savePath);
-          return;
-        } catch {}
+        
+        // Verificar si el archivo ya existe (solo si no está forzado)
+        if (!this.forceInstall) {
+          try {
+            await stat(savePath);
+            // Archivo existe, emitir eventos para mantener consistencia
+            this.emit("FileStart", { type: "object", hash: sha1, size: obj.size });
+            this.emit("Bytes", obj.size); // Emitir bytes para mantener el progreso
+            this.emit("ObjectFile", sha1);
+            this.emit("FileEnd", { type: "object", hash: sha1 });
+            return;
+          } catch {}
+        }
+        
         await mkdir(dirname(savePath), { recursive: true });
         const url = `https://resources.download.minecraft.net/${sub}/${sha1}`;
         this.emit("FileStart", { type: "object", hash: sha1, size: obj.size });

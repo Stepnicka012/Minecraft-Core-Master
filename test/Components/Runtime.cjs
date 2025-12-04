@@ -1,6 +1,6 @@
 const { RuntimeDownloader } = require("../../dist/Minecraft/Runtime");
 const downloader = new RuntimeDownloader({
-  version:"1.21.10",
+  version:"1.12.2",
   root:".minecraft",
 });
 

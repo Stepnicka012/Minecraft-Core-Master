@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ClientDownloader, type ClientDownloaderOptions } from "../Minecraft/Version.js";
+import { ClientDownloader, type ClientDownloaderOptions } from "../Minecraft/Client.js";
 import { LibrariesDownloader, type LibrariesDownloaderOptions } from "../Minecraft/Libraries.js";
 import { AssetsDownloader, type AssetsDownloaderOptions } from "../Minecraft/Assets.js";
 import { NativesDownloader, type NativesDownloaderOptions } from "../Minecraft/Natives.js";

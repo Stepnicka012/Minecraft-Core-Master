@@ -100,7 +100,7 @@ Downloader.on("Done", () => {
 
     await Downloader.StartDownload({
         root: ".minecraft",
-        version: "1.5.2",
+        version: "1.12.2",
         concurry: 8, // NO sobre pasarse oh tira error por mucha peticiones ala red
         maxRetries: 15,
         installJava: false,

@@ -47,9 +47,26 @@ npm install minecraft-core-master
 pnpm install minecraft-core-master
 ```
 
+<p align="center" style="font-size: 1.15rem; font-weight: 600;">
+    ¿Te gusta Minecraft-Core-Master?<br>
+    ¡Apoyá el proyecto y ayudá a que NovaStepStudios siga creciendo y mejorando aun mas al proyecto!
+</p>
+
+<p align="center">
+    <a href="https://ko-fi.com/X8X31BPOT7" target="_blank">
+        <img 
+            src="https://storage.ko-fi.com/cdn/kofi3.png?v=3" 
+            alt="Apoyar en Ko-Fi" 
+            height="42"     
+            style="border:0; height:42px; margin-top: 6px;"
+        />
+    </a>
+</p>
+
+
 <p align="center">
     ¿Tienes dudas o quieres charlar con la comunidad? <br>
-    Únete a nuestro <a href="https://discord.gg/37dYy9apwE" target="_blank">Discord</a> y recibe ayuda rápida, noticias y tips directamente de otros usuarios o de <strong>Stepnicka!</strong>.  
+    Únete a nuestro <a href="https://discord.gg/37dYy9apwE" target="_blank">Discord</a> y recibe ayuda rápida, noticias y tips directamente de otros usuarios o de <strong>Stepnicka!</strong>
 <p>
 <p align="center">
   <img align="center" width="200px" src="./docs/Discord.gif">
@@ -59,64 +76,6 @@ pnpm install minecraft-core-master
     </a>
   </p>
 </p>
-
-**Ejemplos Completos y Detallados**
-```bash
-├───Auth
-│       Microsoft.cjs
-│       Mojang.cjs
-│       
-├───Components
-│       Assets.cjs
-│       Client.cjs
-│       Libraries.cjs
-│       Natives.cjs
-│       Runtime.cjs
-│
-├───Core
-│       Arguments-MoreDetail.cjs
-│       Arguments.cjs
-│       Arguments.md
-│
-└───Start
-        Download.cjs
-        Launch-Advanced.js
-        Launch-Basic.js
-```
-
-**Estructura del Proyecto**
-```bash
-Minecraft-Core-Master
-│   Index.ts (ENTRY POINT)
-│   
-├───Authenticator
-│   │   AZauth.ts
-│   │   Microsoft.ts
-│   │   Mojang.ts
-│   │   
-│   └───UI
-│           Electron.ts
-│           NW.ts
-│           Terminal.ts
-│
-├───Components
-│       Download.ts
-│       Launch.ts
-│       Loader.ts
-│       
-├───Minecraft
-│       Arguments.ts
-│       Assets.ts
-│       Libraries.ts
-│       Natives.ts
-│       Runtime.ts
-│       Version.ts
-│
-└───Utils
-        Index.ts
-        Status.ts
-        Unzipper.ts
-```
 
 ---
 
@@ -289,7 +248,6 @@ Downloader.on("Done", () => {
         concurry: 8, // NO sobre pasarse oh tira error por mucha peticiones ala red
         maxRetries: 5,
         installJava: true,
-        startOnFinish: false,
         sections:{ // Configura cada seccion con tus propias config.
             Client:{
                 concurry: 5,
@@ -628,7 +586,7 @@ Minecraft-Core-Master permite configurar:
 
 # **Eventos, Tipos y Configuración de `MinecraftDownloader`**
 
-## ⚙️ **DownloaderOptions**
+### ⚙️ **DownloaderOptions**
 
 | Opción          | Tipo      | Descripción                                                                         |
 | --------------- | --------- | ----------------------------------------------------------------------------------- |
@@ -654,7 +612,7 @@ Tu código ya usa todos estos eventos.
 Ahora están documentados oficialmente para el README:
 
 
-## Eventos básicos
+### Eventos básicos
 
 | Evento    | Argumentos | Descripción                                   |
 | --------- | ---------- | --------------------------------------------- |
@@ -664,7 +622,7 @@ Ahora están documentados oficialmente para el README:
 | `Paused`  | `()`       | Pausa global en la descarga.                  |
 | `Resumed` | `()`       | Reanudación de la descarga.                   |
 
-## Eventos de progreso general
+### Eventos de progreso general
 
 | Evento            | Argumentos             | Descripción                                        |
 | ----------------- | ---------------------- | -------------------------------------------------- |
@@ -674,7 +632,7 @@ Ahora están documentados oficialmente para el README:
 | `SpeedDownload`   | `string`               | Velocidad actual (ej. `"12.4MB"`).                 |
 | `ETA`             | `number`               | Tiempo estimado en segundos (∞ si es inestable).   |
 
-## Eventos por sección
+### Eventos por sección
 
 | Evento         | Argumentos        | Descripción                                    |
 | -------------- | ----------------- | ---------------------------------------------- |
@@ -683,7 +641,7 @@ Ahora están documentados oficialmente para el README:
 | `SectionDone`  | `name`            | Una sección terminó (Client, Libraries, etc.). |
 | `SectionError` | `{ name, error }` | Error en una sección específica.               |
 
-## Eventos de red / advertencias inteligentes
+### Eventos de red / advertencias inteligentes
 
 | Evento           | Argumentos                    | Descripción                                 |
 | ---------------- | ----------------------------- | ------------------------------------------- |
@@ -696,19 +654,80 @@ Ahora están documentados oficialmente para el README:
 * `high-traffic` → ancho de banda al límite
 * `slow-download` → velocidad muy baja
 
-# Tipos internos del downloader
+### Tipos internos del downloader
 
-## DownloadSizeInfo
+### DownloadSizeInfo
 
 | Campo     | Tipo     |
 | --------- | -------- |
 | `totalMB` | `number` |
 | `totalGB` | `number` |
 
-## NetworkWarning
+### NetworkWarning
 
 | Campo      | Tipo                |                 |         |
 | ---------- | ------------------- | --------------- | ------- |
 | `type`     | `'high-concurrency' | 'slow-download' | ...`    |
 | `severity` | `'low'              | 'medium'        | 'high'` |
 | `message`  | `string`            |                 |         |
+
+
+**Ejemplos Completos y Detallados**
+```bash
+GITHUB
+├───Auth
+│       Microsoft.cjs
+│       Mojang.cjs
+│       
+├───Components
+│       Assets.cjs
+│       Client.cjs
+│       Libraries.cjs
+│       Natives.cjs
+│       Runtime.cjs
+│
+├───Core
+│       Arguments-MoreDetail.cjs
+│       Arguments.cjs
+│       Arguments.md
+│
+└───Start
+        Download.cjs
+        Launch-Advanced.js
+        Launch-Basic.js
+```
+
+**Estructura del Proyecto**
+```bash
+Minecraft-Core-Master
+│   Index.ts (ENTRY POINT)
+│   
+├───Authenticator
+│   │   AZauth.ts
+│   │   Microsoft.ts
+│   │   Mojang.ts
+│   │   
+│   └───UI
+│           Electron.ts
+│           NW.ts
+│           Terminal.ts
+│
+├───Components
+│       Download.ts
+│       Launch.ts
+│       Loader.ts
+│       
+├───Minecraft
+│       Arguments.ts
+│       Assets.ts
+│       LibraryBuyer.ts
+│       Libraries.ts
+│       Natives.ts
+│       Runtime.ts
+│       Version.ts
+│
+└───Utils
+        Index.ts
+        Status.ts
+        Unzipper.ts
+```

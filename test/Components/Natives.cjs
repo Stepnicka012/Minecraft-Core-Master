@@ -1,6 +1,6 @@
 const { NativesDownloader } = require("../../dist/Minecraft/Natives");
 const downloader = new NativesDownloader({
-  version:"1.7.10",
+  version:"1.12.2",
   root:".minecraft",
   concurry: 50,
   maxRetries: 30,

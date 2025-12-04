@@ -1,6 +1,6 @@
 const { ClientDownloader } = require("../../dist/Minecraft/Version");
 const downloader = new ClientDownloader({
-  version:"1.4.7",
+  version:"1.12.2",
   root:".minecraft",
   decodeJson: true,
   maxRetries: 30,

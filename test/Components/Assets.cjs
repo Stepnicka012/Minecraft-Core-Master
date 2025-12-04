@@ -1,6 +1,6 @@
-const { AssetsDownloader } = require("../../dist/index.js");
+const { AssetsDownloader } = require("../../dist/Index.js");
 const downloader = new AssetsDownloader({
-  version:"1.5.2",
+  version:"1.12.2",
   root:".minecraft",
   concurry: 50,
   maxRetries: 30,

@@ -825,6 +825,7 @@ function getNativesDir(root: string, version: string, manifest: VersionManifest,
   return resolve(versionDir, "natives");
 }
 
+
 function libraryNameToPath(name: string): string {
   const parts = name.split(':');
   if (parts.length < 3) {
@@ -1099,15 +1100,78 @@ async function processLibraries(
       console.log(`📁 Archivos en directorio de nativas (${nativeFiles.length}):`);
       nativeFiles.forEach(file => console.log(`   - ${file}`));
       
-      const criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8_64.dll'];
-      const missingNatives = criticalNatives.filter(native => !nativeFiles.includes(native));
+      // DETECTAR SISTEMA OPERATIVO ACTUAL
+      const os = getOS(); // Usa tu función getOS() existente
+      const arch = process.arch; // 'x64' o 'x86'
+      
+      // DEFINIR ARCHIVOS CRÍTICOS POR SISTEMA OPERATIVO
+      let criticalNatives: string[] = [];
+      
+      switch (os) {
+        case 'windows':
+          if (arch === 'x64') {
+            criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8_64.dll'];
+          } else {
+            criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8.dll'];
+          }
+          break;
+          
+        case 'linux':
+          // Para Linux, buscar archivos .so
+          if (arch === 'x64') {
+            // Pueden existir con o sin '64' en el nombre
+            criticalNatives = [
+              'liblwjgl.so', 'liblwjgl64.so',
+              'libopenal.so', 'libopenal64.so',
+              'libjinput-linux.so', 'libjinput-linux64.so'
+            ];
+          } else {
+            criticalNatives = ['liblwjgl.so', 'libopenal.so', 'libjinput-linux.so'];
+          }
+          break;
+          
+        case 'osx':
+          criticalNatives = ['liblwjgl.dylib', 'libopenal.dylib', 'libjinput-osx.dylib'];
+          break;
+          
+        default:
+          criticalNatives = [];
+      }
+      
+      // VERIFICAR FLEXIBLEMENTE (aceptar variantes)
+      const missingNatives = criticalNatives.filter(native => {
+        // Para Linux, ser flexible con las variantes 64-bit
+        if (os === 'linux') {
+          const baseName = native.replace('64', '');
+          // Verificar si existe la versión con o sin '64'
+          const exists = nativeFiles.some(file => 
+            file === native || 
+            (file.includes(baseName) && file.endsWith('.so'))
+          );
+          return !exists;
+        }
+        return !nativeFiles.includes(native);
+      });
+      
       if (missingNatives.length > 0) {
-        console.log(`❌ FALTAN archivos nativos críticos: ${missingNatives.join(', ')}`);
+        console.log(`⚠️  ADVERTENCIA: Archivos nativos críticos faltantes para ${os} (${arch}):`);
+        console.log(`   Esperados: ${criticalNatives.filter(n => !n.includes('64') || arch === 'x64').join(', ')}`);
+        console.log(`   Encontrados: ${nativeFiles.join(', ')}`);
+        
+        // Verificar qué archivos similares sí existen
+        const similarFiles = nativeFiles.filter(file => 
+          file.includes('lwjgl') || 
+          file.includes('openal') || 
+          file.includes('jinput')
+        );
+        if (similarFiles.length > 0) {
+          console.log(`   Archivos similares encontrados: ${similarFiles.join(', ')}`);
+        }
       } else {
-        console.log(`✅ Todos los archivos nativos críticos presentes`);
+        console.log(`✅ Sistema ${os} (${arch}): Nativos correctamente extraídos`);
       }
     } catch (error) {
-      console.warn(`❌ No se pudo leer directorio de nativas: ${nativesDir}`);
+      console.warn(`⚠️  No se pudo leer directorio de nativas: ${nativesDir}`, error);
     }
   }
 

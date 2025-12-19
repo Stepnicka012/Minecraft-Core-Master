@@ -1,9 +1,16 @@
 const { NativesDownloader } = require("../../dist/Minecraft/Natives");
 const downloader = new NativesDownloader({
   version:"1.12.2",
-  root:".minecraft",
+  root:"minecraft",
+  installBaseRoot: true,
   concurry: 50,
   maxRetries: 30,
+  // internal:{
+  //   flattenNatives: true,
+  //   validExts: ['.so'],
+  //   cleanAfter: true,
+  //   ignoreFolders: ['META-INF'],
+  // }
 });
 
 downloader.on("Start", () => console.log("✅ - Descarga iniciada"));

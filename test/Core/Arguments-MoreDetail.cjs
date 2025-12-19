@@ -1,5 +1,5 @@
 const { Mojang } = require("../../dist/Index.js");
-const { ArgumentsBuilder } = require("../../dist/Minecraft/Arguments");
+const { ArgumentsBuilder } = require("../../dist/Minecraft/ArgumentsNoProxy");
 
 const colors = {
     reset: '\x1b[0m', bright: '\x1b[1m', red: '\x1b[31m', green: '\x1b[32m', 
@@ -231,17 +231,30 @@ async function startMinecraftGame() {
       });
 
     const { emitter, stats, pid, kill } = await ArgumentsBuilder({
-      gameRoot: "minecraft",
-      version: "1.12.2",
+      gameRoot: ".minecraft",
+      version: "Battly Client 3.0.0",
+      // java: 'java',
       java: '/home/Stepnicka012/java/jre1.8.0_471/bin/java',
       // java: 'runtime/java-21.0.7/bin/javaw.exe',
       // java: 'runtime/java-8u51-cacert462b08/bin/javaw.exe',
       // java: 'C:/Program Files/Java/jre1.8.0_471/bin/java.exe',
-      memory: { max: "4G", min: "512M" },
+      memory: { max: "4G", min: "512M" }, 
       window: { width: 854, height: 480, fullscreen: false },
       enableDebug: true,
-      // enforceSandbox: true,
+      enforceSandbox: true,
       enableSpeedMetrics: true,
+      override:{
+        thisBaseRootNatives: false,
+        // directory: '.minecraft',
+        // minecraftJar: '.minecraft/versions/1.8.9/1.8.9.jar'
+      },
+      // JVM_ARGS:[
+      //   '-Djava.awt.headless=true',
+      //   '-Dorg.lwjgl.opengl.Display.allowSoftwareOpenGL=true',
+      //   '-Dorg.lwjgl.opengl.Window.undecorated=true',
+      //   '-Dfml.ignoreInvalidMinecraftCertificates=true',
+      //   '-Dfml.ignorePatchDiscrepancies=true'
+      // ],
       user: {
         access_token: userAccount.accessToken,
         client_token: userAccount.access_token,

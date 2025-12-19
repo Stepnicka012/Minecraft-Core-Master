@@ -30,7 +30,7 @@ interface VersionJson {
 export interface RuntimeDownloaderOptions {
   version: string;
   root: string;
-  concurrency?: number;
+  concurry?: number;
   maxRetries?: number;
 }
 
@@ -44,7 +44,7 @@ export class RuntimeDownloader extends EventEmitter {
     constructor(options: RuntimeDownloaderOptions) {
         super();
         this.options = options;
-        this.taskLimiter = new TaskLimiter(options.concurrency || 5);
+        this.taskLimiter = new TaskLimiter(options.concurry || 5);
     }
 
     public async getTotalBytes(): Promise<number> {

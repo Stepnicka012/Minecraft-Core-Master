@@ -1,16 +1,25 @@
 import { mkdir } from "node:fs/promises";
 import { createWriteStream, existsSync, unlinkSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { EventEmitter } from "node:events";
 import https from "node:https";
 import { createTaskLimiter } from "../Utils/Index.js";
 import { Unzipper } from "../Utils/Unzipper.js";
+
+export interface UnzipperOptions {
+  validExts?: string[];
+  flattenNatives?: boolean;
+  cleanAfter?: boolean;
+  ignoreFolders?: string[];
+}
 
 export interface NativesDownloaderOptions {
   version: string;
   root: string;
   concurry?: number;
   maxRetries?: number;
+  installBaseRoot?: boolean;
+  internal?: Partial<UnzipperOptions>;
 }
 
 const agent = new https.Agent({
@@ -54,8 +63,10 @@ export class NativesDownloader extends EventEmitter {
   private version: string;
   private root: string;
   private concurry: number;
+  private installBaseRoot: boolean;
   private maxRetries: number;
-
+  private internal: Partial<UnzipperOptions>;
+  
   private limiter: ReturnType<typeof createTaskLimiter>;
   private paused = false;
   private stopped = false;
@@ -71,6 +82,8 @@ export class NativesDownloader extends EventEmitter {
     this.root = opts.root;
     this.concurry = opts.concurry ?? 16;
     this.maxRetries = opts.maxRetries ?? 5;
+    this.installBaseRoot = opts.installBaseRoot ?? false,
+    this.internal = opts.internal ?? {};
     this.unzipper = new Unzipper();
 
     this.limiter = createTaskLimiter(this.concurry);
@@ -239,17 +252,25 @@ export class NativesDownloader extends EventEmitter {
   }
 
   private async extractNative(task: DownloadTask): Promise<void> {
-    const nativesDir = join(this.root, "versions", this.version, "natives");
+    const rootNative = () => {
+      if (this.installBaseRoot === true) {
+        return resolve(this.root, "natives", this.version);
+      } else {
+        return resolve(this.root, "versions", this.version, "natives");
+      }
+    };
+
+    const nativesDir = rootNative();
     await mkdir(nativesDir, { recursive: true });
 
     try {
       await this.unzipper.extract({
         src: task.path,
         dest: nativesDir,
-        validExts: ['.dll', '.so', '.dylib', '.jnilib'],
-        flattenNatives: true,
-        cleanAfter: true,
-        ignoreFolders: ['META-INF']
+        validExts: this.internal?.validExts || ['.dll', '.so', '.dylib', '.jnilib'],
+        flattenNatives: this.internal?.flattenNatives || true,
+        cleanAfter: this.internal?.cleanAfter || true,
+        ignoreFolders: this.internal?.ignoreFolders || ['META-INF']
       });
     } catch (error) {
       console.error(`Error extrayendo nativo ${task.libraryName}:`, error);

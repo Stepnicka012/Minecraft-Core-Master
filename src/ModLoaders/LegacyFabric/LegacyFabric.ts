@@ -92,7 +92,6 @@ export default class LegacyFabricDownloader extends EventEmitter {
         throw new Error('Download stopped by user');
       }
 
-      // Esperar si está pausado
       while (this.isPaused) {
         await new Promise(resolve => setTimeout(resolve, 100));
         if (this.isStopped) {
@@ -108,7 +107,6 @@ export default class LegacyFabricDownloader extends EventEmitter {
         if (retries > this.maxRetries) {
           throw error;
         }
-        // Esperar antes de reintentar (backoff exponencial)
         await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
       }
     }
@@ -165,9 +163,7 @@ export default class LegacyFabricDownloader extends EventEmitter {
           }
 
           while (this.isPaused) {
-            // Pausar la descarga
             res.pause();
-            // Verificar periódicamente si se reanudó o se detuvo
             setTimeout(() => {
               if (!this.isPaused && !this.isStopped) {
                 res.resume();
@@ -300,7 +296,6 @@ export default class LegacyFabricDownloader extends EventEmitter {
 
       console.log(`[LegacyFabricInstaller] Downloading ${profileJson.libraries.length} libraries...`);
 
-      // Calcular tamaño total estimado (asumiendo un promedio por archivo)
       this.totalBytes = profileJson.libraries.length * 500000; // 500KB promedio por library
       this.downloadedBytes = 0;
 
@@ -308,7 +303,6 @@ export default class LegacyFabricDownloader extends EventEmitter {
       const downloadPromises: Promise<void>[] = [];
       const libraries = profileJson.libraries;
 
-      // Función para procesar descargas con concurrencia
       const processDownloads = async () => {
         for (let i = 0; i < libraries.length; i++) {
           if (this.isStopped) break;
@@ -385,5 +379,4 @@ export default class LegacyFabricDownloader extends EventEmitter {
   }
 }
 
-// Exportación por defecto
-export { LegacyFabricDownloader };
+export { LegacyFabricDownloader };  

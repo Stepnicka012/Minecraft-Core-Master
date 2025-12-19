@@ -1,9 +1,42 @@
 import { EventEmitter } from 'events';
-import { ClientDownloader, type ClientDownloaderOptions } from "../Minecraft/Client.js";
-import { LibrariesDownloader, type LibrariesDownloaderOptions } from "../Minecraft/Libraries.js";
-import { AssetsDownloader, type AssetsDownloaderOptions } from "../Minecraft/Assets.js";
-import { NativesDownloader, type NativesDownloaderOptions } from "../Minecraft/Natives.js";
-import { RuntimeDownloader, type RuntimeDownloaderOptions } from "../Minecraft/Runtime.js";
+import { ClientDownloader } from "../Minecraft/Client.js";
+import { LibrariesDownloader } from "../Minecraft/Libraries.js";
+import { AssetsDownloader } from "../Minecraft/Assets.js";
+import { NativesDownloader } from "../Minecraft/Natives.js";
+import { RuntimeDownloader } from "../Minecraft/Runtime.js";
+
+export interface ClientDownloaderOptions {
+    version?: string;
+    root?: string;
+    concurry?: number | undefined;
+    maxRetries?: number;
+    decodeJson?: boolean | undefined;
+}
+export interface LibrariesDownloaderOptions {
+    version?: string | undefined;
+    root?: string | undefined;
+    concurry?: number | undefined;
+    maxRetries?: number;
+}
+export interface AssetsDownloaderOptions {
+    version?: string;
+    root?: string;
+    concurry?: number | undefined;
+    maxRetries?: number;
+}
+export interface NativesDownloaderOptions {
+    version?: string;
+    root?: string;
+    concurry?: number | undefined;
+    installBaseRoot?: boolean | undefined;
+    maxRetries?: number;
+}
+export interface RuntimeDownloaderOptions {
+    version?: string;
+    root?: string;
+    maxRetries?: number;
+    concurry?: number | undefined;
+}
 
 interface DownloadSections {
     Client?: Partial<ClientDownloaderOptions>;
@@ -16,15 +49,14 @@ interface DownloadSections {
 interface DownloadOptions {
     root: string;
     version: string;
-    concurry: number;
-    maxRetries: number;
-    installJava: boolean | undefined;
-    startOnFinish: boolean | undefined;
+    concurry?: number;
+    maxRetries?: number;
+    installJava?: boolean;
     sections: DownloadSections;
 }
 
 interface NetworkWarning {
-    type: 'high-concurrency' | 'high-traffic' | 'connection-reset' | 'slow-download' | 'server-overload';
+    type: 'high-concurry' | 'high-traffic' | 'connection-reset' | 'slow-download' | 'server-overload';
     message: string;
     severity: 'low' | 'medium' | 'high';
     data?: any;
@@ -74,7 +106,7 @@ class MinecraftDownloader extends EventEmitter {
         this.connectionErrors = 0;
 
         // Verificar concurrencia alta ANTES de empezar
-        this.checkConcurrencyWarning(options);
+        this.checkconcurryWarning(options);
 
         this.emit("Start");
 
@@ -104,19 +136,19 @@ class MinecraftDownloader extends EventEmitter {
         }
     }
 
-    private checkConcurrencyWarning(options: DownloadOptions): void {
-        const totalConcurry = this.calculateTotalConcurrency(options);
+    private checkconcurryWarning(options: DownloadOptions): void {
+        const totalConcurry = this.calculateTotalconcurry(options);
         
         if (totalConcurry > 50) {
             this.emitWarning({
-                type: 'high-concurrency',
+                type: 'high-concurry',
                 message: `Concurrencia muy alta detectada (${totalConcurry} conexiones). Puede causar problemas en los servidores.`,
                 severity: 'high',
                 data: { totalConcurry, recommended: 20 }
             });
         } else if (totalConcurry > 30) {
             this.emitWarning({
-                type: 'high-concurrency', 
+                type: 'high-concurry', 
                 message: `Concurrencia elevada (${totalConcurry} conexiones). Monitoreando rendimiento.`,
                 severity: 'medium',
                 data: { totalConcurry, recommended: 20 }
@@ -124,15 +156,15 @@ class MinecraftDownloader extends EventEmitter {
         }
     }
 
-    private calculateTotalConcurrency(options: DownloadOptions): number {
+    private calculateTotalconcurry(options: DownloadOptions): number {
         const sections = options.sections || {};
         let total = 0;
 
-        total += sections.Client?.concurry ?? options.concurry;
-        total += sections.Libraries?.concurry ?? options.concurry;
-        total += sections.Assets?.concurry ?? options.concurry;
-        total += sections.Natives?.concurry ?? options.concurry;
-        total += sections.Runtime?.concurrency ?? options.concurry;
+        total += sections.Client?.concurry || options.concurry || 1;
+        total += sections.Libraries?.concurry || options.concurry || 1;
+        total += sections.Assets?.concurry || options.concurry || 1;
+        total += sections.Natives?.concurry || options.concurry || 1;
+        total += sections.Runtime?.concurry || options.concurry || 1;
 
         return total;
     }
@@ -153,37 +185,38 @@ class MinecraftDownloader extends EventEmitter {
         const clientConfig: ClientDownloaderOptions = {
             version: options.version,
             root: options.root,
-            concurry: sections.Client?.concurry ?? options.concurry,
-            decodeJson: sections.Client?.decodeJson ?? false,
-            maxRetries: sections.Client?.maxRetries ?? options.maxRetries
+            decodeJson: sections.Client?.decodeJson || false,
+            concurry: sections.Client?.concurry || options.concurry || 1,
+            maxRetries: sections.Client?.maxRetries || options.maxRetries || 1
         };
 
         const librariesConfig: LibrariesDownloaderOptions = {
             version: options.version,
             root: options.root,
-            concurry: sections.Libraries?.concurry ?? options.concurry,
-            maxRetries: sections.Libraries?.maxRetries ?? options.maxRetries
+            concurry: sections.Libraries?.concurry || options.concurry || 1,
+            maxRetries: sections.Libraries?.maxRetries || options.maxRetries || 1
         };
 
         const assetsConfig: AssetsDownloaderOptions = {
             version: options.version,
             root: options.root,
-            concurry: sections.Assets?.concurry ?? options.concurry,
-            maxRetries: sections.Assets?.maxRetries ?? options.maxRetries
+            concurry: sections.Assets?.concurry || options.concurry || 1,
+            maxRetries: sections.Assets?.maxRetries || options.maxRetries || 1
         };
 
         const nativesConfig: NativesDownloaderOptions = {
             version: options.version,
             root: options.root,
-            concurry: sections.Natives?.concurry ?? options.concurry,
-            maxRetries: sections.Natives?.maxRetries ?? options.maxRetries
+            installBaseRoot: sections.Natives?.installBaseRoot || false,
+            concurry: sections.Natives?.concurry || options.concurry || 1,
+            maxRetries: sections.Natives?.maxRetries || options.maxRetries || 1
         };
 
         const runtimeConfig: RuntimeDownloaderOptions = {
             version: options.version,
             root: options.root,
-            concurrency: sections.Runtime?.concurrency ?? options.concurry,
-            maxRetries: sections.Runtime?.maxRetries ?? options.maxRetries
+            concurry: sections.Runtime?.concurry || options.concurry || 1,
+            maxRetries: sections.Runtime?.maxRetries || options.maxRetries || 1
         };
 
         type DownloaderConfig = {

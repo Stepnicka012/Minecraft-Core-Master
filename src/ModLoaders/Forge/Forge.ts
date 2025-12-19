@@ -4,14 +4,11 @@ import { EventEmitter } from 'events';
 import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 
-// Para manejar __dirname en ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// URL base de Forge
 const FORGE_URL = "https://files.minecraftforge.net/maven/net/minecraftforge/forge/{version}/forge-{version}-installer.jar";
 
-// Tipos de eventos
 type DownloaderEvents = {
   'start': () => void;
   'bytes': (bytes: number) => void;
@@ -31,8 +28,7 @@ type DownloaderEvents = {
   'versionResolved': (version: string) => void;
 };
 
-// Interfaces
-interface DownloaderOptions {
+export interface DownloaderOptions {
   /** Versión de Forge (ej: "1.14.4-28.2.27") - si no se especifica, usa la última */
   version?: string;
   /** Ruta del ejecutable de Java */
@@ -55,13 +51,13 @@ interface DownloaderOptions {
   cleanupLogs?: boolean;
 }
 
-interface ProgressInfo {
+export interface ProgressInfo {
   downloaded: number;
   total: number;
   percentage: number;
 }
 
-interface FileInfo {
+export interface FileInfo {
   name: string;
   type: 'installer' | 'log' | 'config';
   size?: number;
@@ -72,7 +68,7 @@ interface FileError {
   error: string;
 }
 
-interface DownloadResult {
+export interface DownloadResult {
   success: boolean;
   path: string;
   version: string;
@@ -210,7 +206,6 @@ class ForgeDownloader extends EventEmitter {
     }
   }
 
-  // Métodos de control
   pause(): void {
     this.isPaused = true;
     this.emit('paused');
@@ -230,14 +225,11 @@ class ForgeDownloader extends EventEmitter {
     this.emit('stopped');
   }
 
-  // Método principal de descarga e instalación
   private async downloadAndInstall(): Promise<DownloadResult> {
     const files: FileInfo[] = [];
-    
-    // 1. Verificar Java
+  
     await this.checkJava();
-    
-    // 2. Determinar la versión a usar
+  
     let versionToUse = this.options.version;
     if (!versionToUse) {
       versionToUse = await ForgeVersionHelper.getRecommendedForgeVersion();
@@ -246,14 +238,11 @@ class ForgeDownloader extends EventEmitter {
     this.emit('versionResolved', versionToUse);
     console.log(`🎯 Usando versión: ${versionToUse}`);
     
-    // 3. Resolver URL de descarga
     const installerUrl = FORGE_URL.replace(/{version}/g, versionToUse);
     this.emit('downloading', installerUrl);
     
-    // 4. Crear directorios necesarios
     await this.createDirectories();
     
-    // 5. Descargar installer
     const installerFile: FileInfo = {
       name: `forge-${versionToUse}-installer.jar`,
       type: 'installer'
@@ -264,14 +253,11 @@ class ForgeDownloader extends EventEmitter {
     files.push(installerFile);
     this.emit('fileComplete', installerFile);
     
-    // 6. Ejecutar instalación
     this.emit('installing');
     await this.runInstaller(installerPath);
     
-    // 7. Limpieza
     await this.cleanup(installerPath, files);
     
-    // 8. Verificar instalación
     await this.verifyInstallation(versionToUse);
     
     return {
@@ -339,7 +325,6 @@ class ForgeDownloader extends EventEmitter {
           return;
         }
 
-        // Pausa simple
         while (this.isPaused && !this.isStopped) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
@@ -356,7 +341,6 @@ class ForgeDownloader extends EventEmitter {
           fileStream.write(value);
           this.downloadedBytes += value.length;
           
-          // Emitir eventos de progreso
           this.emit('bytes', value.length);
           this.emitProgress();
           
@@ -422,12 +406,10 @@ class ForgeDownloader extends EventEmitter {
   }
 
   private async cleanup(installerPath: string, files: FileInfo[]): Promise<void> {
-    // Eliminar installer
     if (fs.existsSync(installerPath)) {
       fs.unlinkSync(installerPath);
     }
 
-    // Limpiar logs si está habilitado
     if (this.options.cleanupLogs) {
       await this.cleanupLogs(files);
     }

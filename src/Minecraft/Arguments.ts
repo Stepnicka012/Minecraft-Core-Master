@@ -68,6 +68,8 @@ export interface LauncherOptions {
     libraryRoot?: string;
     /** Carpeta de nativos (Natives folder) */
     natives?: string;
+    /** Cargar la carpeta de nativos en la carpeta Base (Load the native folder into the Base folder) */
+    thisBaseRootNatives?: boolean;
     /** Carpeta base de esta versión (Base folder of this version) */
     directory?: string;
   };
@@ -407,7 +409,6 @@ async function handleCustomVersion(options: LauncherOptions, manifest: VersionMa
     });
   });
 
-  // Ejecutar descarga
   await libraryBuyer.ensureLibraries();
 }
 
@@ -465,9 +466,8 @@ function removeAllDuplicateArgs(args: string[]): string[] {
     
     if (current?.startsWith('--')) {
       if (seenArgs.has(current)) {
-        // Saltar este argumento y su valor (si tiene)
         if (i + 1 < args.length && !args[i + 1]?.startsWith('--')) {
-          i++; // Saltar el valor también
+          i++;
         }
         continue;
       }
@@ -740,13 +740,10 @@ function processGameArgument(arg: string, options: LauncherOptions, manifest: Ve
   const quickPlayMultiplayer = options.MC_ARGS?.quickPlayMultiplayer as string || "";
   const quickPlayRealms = options.MC_ARGS?.quickPlayRealms as string || "";
   
-  if (arg.trim().startsWith('{') || arg.trim().startsWith('[')) {
-    return arg;
-  }
+  if (arg.trim().startsWith('{') || arg.trim().startsWith('[')) { return arg; }
   
   return arg.replace(/\$\{([^}]+)\}/g, (key: string): string => {
     const trimmedKey = key.replace(/\$\{|\}/g, '').trim();
-    
     
     switch (trimmedKey) {
       case "auth_player_name": return user.name || "Player";
@@ -777,418 +774,10 @@ function processGameArgument(arg: string, options: LauncherOptions, manifest: Ve
       case "quickPlayRealms": return quickPlayRealms;
         
       default: 
-        if (options.MC_ARGS && trimmedKey in options.MC_ARGS) {
-          return String(options.MC_ARGS[trimmedKey]);
-        }
+        if (options.MC_ARGS && trimmedKey in options.MC_ARGS) { return String(options.MC_ARGS[trimmedKey]); }
         return "";
     }
   });
-}
-
-function getClientJarPath(root: string, version: string, manifest: VersionManifest, override?: { minecraftJar?: string; directory?: string }): string {
-  if (override?.minecraftJar) {
-    return override.minecraftJar;
-  }
-  
-  function getBaseDir(): string {
-    if (override?.directory) {
-      return override.directory;
-    }
-    if (manifest.inheritsFrom) {
-      return resolve(root, "versions", manifest.inheritsFrom);
-    }
-    return resolve(root, "versions", version);
-  }
-  
-  const baseDir = getBaseDir();
-  
-  if (manifest.jar) { 
-    return resolve(baseDir, `${manifest.jar}.jar`); 
-  }
-  if (manifest.inheritsFrom) { 
-    return resolve(baseDir, `${manifest.inheritsFrom}.jar`); 
-  }
-  return resolve(baseDir, `${version}.jar`);
-}
-
-function getNativesDir(root: string, version: string, manifest: VersionManifest, override?: { natives?: string; directory?: string }): string {
-  if (override?.natives) {
-    return override.natives;
-  }
-  
-  const versionDir = override?.directory || resolve(root, "versions", version);
-  
-  if (manifest.inheritsFrom) { 
-    const parentDir = override?.directory || resolve(root, "versions", manifest.inheritsFrom);
-    return resolve(parentDir, "natives"); 
-  }
-  return resolve(versionDir, "natives");
-}
-
-
-function libraryNameToPath(name: string): string {
-  const parts = name.split(':');
-  if (parts.length < 3) {
-    throw new Error(`Invalid library name: ${name}`);
-  }
-
-  const groupId = parts[0];
-  const artifactId = parts[1];
-  const version = parts[2];
-  const classifier = parts[3] || null;
-
-  const groupPath = groupId?.replace(/\./g, '/');
-  let fileName = `${artifactId}-${version}`;
-  if (classifier) {
-    fileName += `-${classifier}`;
-  }
-  fileName += '.jar';
-
-  return `${groupPath}/${artifactId}/${version}/${fileName}`;
-}
-
-async function processLibraries(
-  root: string, 
-  version: string, 
-  libraries: Library[], 
-  manifest: VersionManifest, 
-  override?: { libraryRoot?: string; natives?: string },
-  options?: LauncherOptions
-): Promise<{ classpath: string[]; nativesDir: string; libraryCount: number }> {
-  const classpath: string[] = [];
-  const processedPaths = new Set<string>();
-  let libraryCount = 0;
-  const nativesDir = getNativesDir(root, version, manifest, override);
-  const libraryRoot = override?.libraryRoot || resolve(root, "libraries");
-  
-  const libraryConflicts = new Map();
-  
-  try {
-    await fs.mkdir(nativesDir, { recursive: true });
-  } catch (error) { }
-
-  const os = getOS();
-  const isLegacy = isLegacyVersion(manifest);
-
-  if (options?.enableDebug) {
-    console.log(`Processing libraries for ${isLegacy ? 'legacy' : 'modern'} version: ${version}`);
-  }
-
-  for (const lib of libraries) {
-    const isCriticalLWJGL = isLegacy && (
-      lib.name.includes('org.lwjgl.lwjgl:lwjgl:') ||
-      lib.name.includes('org.lwjgl.lwjgl:lwjgl_util:') ||
-      lib.name.includes('org.lwjgl.lwjgl:lwjgl-platform:')
-    );
-
-    let shouldInclude = satisfiesAllRules(lib.rules, options?.features);
-    
-    if (isCriticalLWJGL && !shouldInclude) {
-      if (options?.enableDebug) {
-        console.log(`🔄 FORCING critical LWJGL library (rules bypassed): ${lib.name}`);
-      }
-      shouldInclude = true;
-    }
-
-    if (!shouldInclude) {
-      if (options?.enableDebug) {
-        console.log(`Skipping library due to rules: ${lib.name}`);
-      }
-      continue;
-    }
-
-    if (lib.name.includes('com.google.guava:guava:')) {
-      const versionMatch = lib.name.match(/com\.google\.guava:guava:([\d.]+)/);
-      if (versionMatch) {
-        const currentVersion = versionMatch[1];
-        
-        // 1. Inicializar el set de registro (o usar 0.0 si no existe)
-        if (!libraryConflicts.has('guava')) {
-          libraryConflicts.set('guava', new Set());
-        }
-        
-        const registeredVersions = libraryConflicts.get('guava');
-        
-        // Determinar la versión actualmente registrada
-        const existingVersion = registeredVersions.size > 0 
-          ? Array.from(registeredVersions)[0] as string
-          : '0.0';
-          
-        // Convertimos a entero para comparación simple (ej: '17.0' -> 17)
-        const currentMajor = parseInt(currentVersion?.split('.')[0] || '0');
-        const existingMajor = parseInt(existingVersion.split('.')[0] || '0');
-
-        // 2. Lógica de selección: Reemplazar si la actual es MAYOR
-        if (currentMajor > existingMajor) {
-          // Si encontramos una versión más moderna (ej: 17.0 después de 15.0), la registramos
-          if (options?.enableDebug) {
-             console.log(`⬆️ UPGRADING Guava: ${existingVersion} -> ${currentVersion}. Priorizando para evitar errores de lanzamiento.`);
-          }
-          // Limpiamos el registro anterior y añadimos la nueva versión
-          registeredVersions.clear(); 
-          registeredVersions.add(currentVersion);
-          
-        } else if (currentMajor < existingMajor) {
-           // Si la versión actual es antigua (ej: 15.0 después de 17.0), la saltamos
-           if (options?.enableDebug) {
-              console.log(`🔄 SKIPPING older Guava: ${currentVersion} (Keeping ${existingVersion})`);
-           }
-           continue; 
-           
-        } else if (registeredVersions.size > 0 && currentMajor === existingMajor) {
-           // Si es la misma versión y ya está registrada, la saltamos (evita duplicados exactos)
-           if (options?.enableDebug) {
-              console.log(`🔄 SKIPPING duplicate Guava version: ${currentVersion}`);
-           }
-           continue; 
-        }
-        
-        // Si llegamos a este punto y el Set sigue vacío (solo pasa en la primera iteración
-        // si la versión es válida, ej: 15.0 cuando existingMajor es 0), la añadimos.
-        if (registeredVersions.size === 0) {
-            registeredVersions.add(currentVersion);
-        }
-      }
-    }
-
-    if (isLegacy) {
-      let libPath: string | null = null;
-
-      if (lib.natives && lib.downloads?.classifiers) {
-        const nativeKey = lib.natives[os];
-        if (nativeKey) {
-          const nativeClassifier = nativeKey.replace("${arch}", process.arch === "x64" ? "64" : "32");
-          const nativeArtifact = lib.downloads.classifiers[nativeClassifier];
-          if (nativeArtifact) {
-            libPath = resolve(libraryRoot, nativeArtifact.path);
-            if (options?.enableDebug) {
-              console.log(`Using native classifier for ${lib.name}: ${nativeClassifier}`);
-            }
-          }
-        }
-      }
-      
-      if (!libPath && lib.downloads?.artifact) {
-        libPath = resolve(libraryRoot, lib.downloads.artifact.path);
-      }
-      
-      if (!libPath) {
-        try {
-          const relativePath = libraryNameToPath(lib.name);
-          libPath = resolve(libraryRoot, relativePath);
-        } catch (error) {
-          if (options?.enableDebug) {
-            console.warn(`No se pudo generar ruta para librería: ${lib.name}`, error);
-          }
-          continue;
-        }
-      }
-
-      if (libPath && !processedPaths.has(libPath)) {
-        try {
-          await fs.access(libPath);
-          classpath.push(libPath);
-          processedPaths.add(libPath);
-          libraryCount++;
-          
-          if (options?.enableDebug) {
-            console.log(`Added to classpath (legacy): ${libPath}`);
-            
-            if (lib.name.includes('lwjgl')) {
-              console.log(`>>> LWJGL Library Added: ${lib.name} -> ${libPath}`);
-            }
-          }
-        } catch (error) {
-          if (options?.enableDebug) {
-            console.warn(`Librería no encontrada (legacy): ${libPath}`);
-          }
-        }
-      }
-      continue;
-    }
-
-    if (lib.natives) {
-      const nativeKey = lib.natives[os];
-      if (nativeKey && lib.downloads?.classifiers) {
-        const nativeClassifier = nativeKey.replace("${arch}", process.arch === "x64" ? "64" : "32");
-        const nativeArtifact = lib.downloads.classifiers[nativeClassifier];
-        if (nativeArtifact) {
-          const nativePath = resolve(libraryRoot, nativeArtifact.path);
-          try {
-            await fs.access(nativePath);
-            
-            const fileName = path.basename(nativePath);
-            const destPath = resolve(nativesDir, fileName);
-            
-            try {
-              await fs.copyFile(nativePath, destPath);
-              if (options?.enableDebug) {
-                console.log(`📦 Native library copied: ${fileName} -> ${nativesDir}`);
-              }
-            } catch (copyError) {
-              if (options?.enableDebug) {
-                console.warn(`❌ Error copiando librería nativa: ${fileName}`, copyError);
-              }
-            }
-            
-            libraryCount++;
-            
-            if (options?.enableDebug) {
-              console.log(`Native library processed (modern): ${nativePath}`);
-            }
-          } catch (error) {
-            if (options?.enableDebug) {
-              console.warn(`Librería nativa no encontrada: ${nativePath}`);
-            }
-          }
-        }
-      }
-      continue;
-    }
-
-    let libPath: string | null = null;
-
-    if (lib.downloads?.artifact) {
-      libPath = resolve(libraryRoot, lib.downloads.artifact.path);
-    } else {
-      try {
-        const relativePath = libraryNameToPath(lib.name);
-        libPath = resolve(libraryRoot, relativePath);
-      } catch (error) {
-        if (options?.enableDebug) {
-          console.warn(`No se pudo procesar librería: ${lib.name}`, error);
-        }
-        continue;
-      }
-    }
-
-    if (!processedPaths.has(libPath)) {
-      try {
-        await fs.access(libPath);
-        classpath.push(libPath);
-        processedPaths.add(libPath);
-        libraryCount++;
-        
-        if (options?.enableDebug) {
-          console.log(`Added to classpath (modern): ${libPath}`);
-        }
-      } catch (error) {
-        if (options?.enableDebug) {
-          console.warn(`Librería no encontrada: ${libPath}`);
-        }
-      }
-    }
-  }
-
-  const guavaLibraries = classpath.filter(path => path.includes('guava'));
-  if (guavaLibraries.length > 1 && options?.enableDebug) {
-    console.log(`⚠️  ADVERTENCIA: Aún hay ${guavaLibraries.length} versiones de Guava:`);
-    guavaLibraries.forEach(lib => console.log(`   - ${lib}`));
-
-    const guava15 = classpath.find(path => path.includes('guava-15.0'));
-    if (guava15) {
-      const index = classpath.indexOf(guava15);
-      classpath.splice(index, 1);
-      libraryCount--;
-      console.log(`🗑️  ELIMINADO: ${guava15}`);
-    }
-  }
-
-  if (options?.enableDebug) {
-    try {
-      const nativeFiles = await fs.readdir(nativesDir);
-      console.log(`📁 Archivos en directorio de nativas (${nativeFiles.length}):`);
-      nativeFiles.forEach(file => console.log(`   - ${file}`));
-      
-      // DETECTAR SISTEMA OPERATIVO ACTUAL
-      const os = getOS(); // Usa tu función getOS() existente
-      const arch = process.arch; // 'x64' o 'x86'
-      
-      // DEFINIR ARCHIVOS CRÍTICOS POR SISTEMA OPERATIVO
-      let criticalNatives: string[] = [];
-      
-      switch (os) {
-        case 'windows':
-          if (arch === 'x64') {
-            criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8_64.dll'];
-          } else {
-            criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8.dll'];
-          }
-          break;
-          
-        case 'linux':
-          // Para Linux, buscar archivos .so
-          if (arch === 'x64') {
-            // Pueden existir con o sin '64' en el nombre
-            criticalNatives = [
-              'liblwjgl.so', 'liblwjgl64.so',
-              'libopenal.so', 'libopenal64.so',
-              'libjinput-linux.so', 'libjinput-linux64.so'
-            ];
-          } else {
-            criticalNatives = ['liblwjgl.so', 'libopenal.so', 'libjinput-linux.so'];
-          }
-          break;
-          
-        case 'osx':
-          criticalNatives = ['liblwjgl.dylib', 'libopenal.dylib', 'libjinput-osx.dylib'];
-          break;
-          
-        default:
-          criticalNatives = [];
-      }
-      
-      // VERIFICAR FLEXIBLEMENTE (aceptar variantes)
-      const missingNatives = criticalNatives.filter(native => {
-        // Para Linux, ser flexible con las variantes 64-bit
-        if (os === 'linux') {
-          const baseName = native.replace('64', '');
-          // Verificar si existe la versión con o sin '64'
-          const exists = nativeFiles.some(file => 
-            file === native || 
-            (file.includes(baseName) && file.endsWith('.so'))
-          );
-          return !exists;
-        }
-        return !nativeFiles.includes(native);
-      });
-      
-      if (missingNatives.length > 0) {
-        console.log(`⚠️  ADVERTENCIA: Archivos nativos críticos faltantes para ${os} (${arch}):`);
-        console.log(`   Esperados: ${criticalNatives.filter(n => !n.includes('64') || arch === 'x64').join(', ')}`);
-        console.log(`   Encontrados: ${nativeFiles.join(', ')}`);
-        
-        // Verificar qué archivos similares sí existen
-        const similarFiles = nativeFiles.filter(file => 
-          file.includes('lwjgl') || 
-          file.includes('openal') || 
-          file.includes('jinput')
-        );
-        if (similarFiles.length > 0) {
-          console.log(`   Archivos similares encontrados: ${similarFiles.join(', ')}`);
-        }
-      } else {
-        console.log(`✅ Sistema ${os} (${arch}): Nativos correctamente extraídos`);
-      }
-    } catch (error) {
-      console.warn(`⚠️  No se pudo leer directorio de nativas: ${nativesDir}`, error);
-    }
-  }
-
-  if (options?.enableDebug) {
-    console.log(`Final classpath for ${version}:`);
-    classpath.forEach((path, index) => {
-      console.log(`  [${index + 1}] ${path}`);
-    });
-    
-    const lwjglLibraries = classpath.filter(path =>
-      path.includes('lwjgl') || path.includes('LWJGL')
-    );
-    console.log(`LWJGL libraries in classpath: ${lwjglLibraries.length}`);
-    lwjglLibraries.forEach(lib => console.log(`  - ${lib}`));
-  }
-
-  return { classpath, nativesDir, libraryCount };
 }
 
 function isLegacyVersion(manifest: VersionManifest): boolean {
@@ -1208,13 +797,321 @@ function isLegacyVersion(manifest: VersionManifest): boolean {
   return false;
 }
 
-function buildJVMArgs( 
-  options: LauncherOptions, 
-  manifest: VersionManifest, 
-  classpath: string[], 
-  nativesDir: string, 
-  emitter: EventEmitter 
-): string[] {
+function getClientJarPath(root: string, version: string, manifest: VersionManifest, override?: { minecraftJar?: string; directory?: string }): string {
+  if (override?.minecraftJar) { return override.minecraftJar; }
+  function getBaseDir(): string {
+    if (override?.directory) { return override.directory; }
+    if (manifest.inheritsFrom) { return resolve(root, "versions", manifest.inheritsFrom); }
+    return resolve(root, "versions", version);
+  }
+  
+  const baseDir = getBaseDir();
+  
+  if (manifest.jar) { return resolve(baseDir, `${manifest.jar}.jar`); }
+  if (manifest.inheritsFrom) { return resolve(baseDir, `${manifest.inheritsFrom}.jar`); }
+  return resolve(baseDir, `${version}.jar`);
+}
+
+function getNativesDir(root: string, version: string, manifest: VersionManifest, override?: { 
+    natives?: string; 
+    directory?: string;
+    thisBaseRootNatives?: boolean;
+}): string {
+    if (override?.natives) { return override.natives; }
+    if (override?.thisBaseRootNatives) { return resolve(root, "natives", version); }
+    const versionDir = override?.directory || resolve(root, "versions", version);
+    if (manifest.inheritsFrom) {
+        const parentDir = override?.directory || resolve(root, "versions", manifest.inheritsFrom);
+        return resolve(parentDir, "natives"); 
+    }
+    return resolve(versionDir, "natives");
+}
+function libraryNameToPath(name: string): string {
+  const parts = name.split(':');
+  if (parts.length < 3) { throw new Error(`Invalid library name: ${name}`); }
+
+  const groupId = parts[0];
+  const artifactId = parts[1];
+  const version = parts[2];
+  const classifier = parts[3] || null;
+
+  const groupPath = groupId?.replace(/\./g, '/');
+  let fileName = `${artifactId}-${version}`;
+  if (classifier) { fileName += `-${classifier}`; }
+  fileName += '.jar';
+
+  return `${groupPath}/${artifactId}/${version}/${fileName}`;
+}
+
+async function processLibraries(
+  root: string, 
+  version: string, 
+  libraries: Library[], 
+  manifest: VersionManifest,
+  override?: { 
+    libraryRoot?: string; 
+    natives?: string;
+    thisBaseRootNatives?: boolean;
+    directory?: string;
+  },
+  options?: LauncherOptions
+): Promise<{ classpath: string[]; nativesDir: string; libraryCount: number }> {
+  const classpath: string[] = [];
+  const processedPaths = new Set<string>();
+  let libraryCount = 0;
+
+
+  const nativesDir = getNativesDir(root, version, manifest, override);
+  const libraryRoot = override?.libraryRoot || resolve(root, "libraries");
+  
+  const libraryConflicts = new Map();
+  
+  try { await fs.mkdir(nativesDir, { recursive: true }); } catch (error) { }
+
+  const os = getOS();
+  const isLegacy = isLegacyVersion(manifest);
+
+  if (options?.enableDebug) { console.log(`Processing libraries for ${isLegacy ? 'legacy' : 'modern'} version: ${version}`); }
+
+  for (const lib of libraries) {
+    const isCriticalLWJGL = isLegacy && (
+      lib.name.includes('org.lwjgl.lwjgl:lwjgl:') ||
+      lib.name.includes('org.lwjgl.lwjgl:lwjgl_util:') ||
+      lib.name.includes('org.lwjgl.lwjgl:lwjgl-platform:')
+    );
+
+    let shouldInclude = satisfiesAllRules(lib.rules, options?.features);
+    
+    if (isCriticalLWJGL && !shouldInclude) {
+      if (options?.enableDebug) { console.log(`[ FORZANDO ] Biblioteca crítica LWJGL (reglas omitidas): ${lib.name}`); }
+      shouldInclude = true;
+    }
+
+    if (!shouldInclude) {
+      if (options?.enableDebug) { console.log(`[ Skipping ] Biblioteca debido a las reglas: ${lib.name}`); }
+      continue;
+    }
+
+    if (lib.name.includes('com.google.guava:guava:')) {
+      const versionMatch = lib.name.match(/com\.google\.guava:guava:([\d.]+)/);
+      if (versionMatch) {
+        const currentVersion = versionMatch[1];
+        if (!libraryConflicts.has('guava')) { libraryConflicts.set('guava', new Set()); }
+        const registeredVersions = libraryConflicts.get('guava');
+        
+        const existingVersion = registeredVersions.size > 0 ? Array.from(registeredVersions)[0] as string : '0.0';
+        const currentMajor = parseInt(currentVersion?.split('.')[0] || '0');
+        const existingMajor = parseInt(existingVersion.split('.')[0] || '0');
+
+        if (currentMajor > existingMajor) {
+          if (options?.enableDebug) { console.log(`[ UPGRADING ] Guava: ${existingVersion} -> ${currentVersion}. Priorizando para evitar errores de lanzamiento.`); }
+          registeredVersions.clear(); 
+          registeredVersions.add(currentVersion);
+        } else if (currentMajor < existingMajor) {
+           if (options?.enableDebug) { console.log(`[ SKIPPING ] older Guava: ${currentVersion} (Keeping ${existingVersion})`); }
+           continue; 
+           
+        } else if (registeredVersions.size > 0 && currentMajor === existingMajor) {
+           if (options?.enableDebug) { console.log(`[ SKIPPING ] duplicate Guava version: ${currentVersion}`); }
+           continue; 
+        }
+        if (registeredVersions.size === 0) { registeredVersions.add(currentVersion); }
+      }
+    }
+
+    if (isLegacy) {
+      let libPath: string | null = null;
+      if (lib.natives && lib.downloads?.classifiers) {
+        const nativeKey = lib.natives[os];
+        if (nativeKey) {
+          const nativeClassifier = nativeKey.replace("${arch}", process.arch === "x64" ? "64" : "32");
+          const nativeArtifact = lib.downloads.classifiers[nativeClassifier];
+          if (nativeArtifact) {
+            libPath = resolve(libraryRoot, nativeArtifact.path);
+            if (options?.enableDebug) { console.log(`Using native classifier for ${lib.name}: ${nativeClassifier}`); }
+          }
+        }
+      }
+      
+      if (!libPath && lib.downloads?.artifact) { libPath = resolve(libraryRoot, lib.downloads.artifact.path); }
+      
+      if (!libPath) {
+        try {
+          const relativePath = libraryNameToPath(lib.name);
+          libPath = resolve(libraryRoot, relativePath);
+        } catch (error) {
+          if (options?.enableDebug) { console.warn(`No se pudo generar ruta para librería: ${lib.name}`, error); }
+          continue;
+        }
+      }
+
+      if (libPath && !processedPaths.has(libPath)) {
+        try {
+          await fs.access(libPath);
+          classpath.push(libPath);
+          processedPaths.add(libPath);
+          libraryCount++;
+          if (options?.enableDebug) { console.log(`Añadido a classpath (legacy): ${libPath}`);
+            if (lib.name.includes('lwjgl')) { console.log(`[ LWJGL Nativo agregado ]: ${lib.name} -> ${libPath}`); }
+          }
+        } catch (error) {
+          if (options?.enableDebug) { console.warn(`Libreroa no encontrada (legacy): ${libPath}`); }
+        }
+      }
+      continue;
+    }
+
+    if (lib.natives) {
+      const nativeKey = lib.natives[os];
+      if (nativeKey && lib.downloads?.classifiers) {
+        const nativeClassifier = nativeKey.replace("${arch}", process.arch === "x64" ? "64" : "32");
+        const nativeArtifact = lib.downloads.classifiers[nativeClassifier];
+        if (nativeArtifact) {
+          const nativePath = resolve(libraryRoot, nativeArtifact.path);
+          try {
+            await fs.access(nativePath);
+            const fileName = path.basename(nativePath);
+            const destPath = resolve(nativesDir, fileName);
+            try {
+              await fs.copyFile(nativePath, destPath);
+              if (options?.enableDebug) { console.log(`Biblioteca nativa copiada: ${fileName} -> ${nativesDir}`); }
+            } catch (copyError) { if (options?.enableDebug) { console.warn(`Error copiando librería nativa: ${fileName}`, copyError); } }
+            libraryCount++;
+            if (options?.enableDebug) { console.log(`Biblioteca nativa procesada: ${nativePath}`); }
+          } catch (error) {
+            if (options?.enableDebug) { console.warn(`Libreria nativa no encontrada: ${nativePath}`); }
+          }
+        }
+      }
+      continue;
+    }
+
+    let libPath: string | null = null;
+    if (lib.downloads?.artifact) {
+      libPath = resolve(libraryRoot, lib.downloads.artifact.path);
+    } else {
+      try {
+        const relativePath = libraryNameToPath(lib.name);
+        libPath = resolve(libraryRoot, relativePath);
+      } catch (error) {
+        if (options?.enableDebug) { console.warn(`No se pudo procesar librería: ${lib.name}`, error); }
+        continue;
+      }
+    }
+
+    if (!processedPaths.has(libPath)) {
+      try {
+        await fs.access(libPath);
+        classpath.push(libPath);
+        processedPaths.add(libPath);
+        libraryCount++;
+        if (options?.enableDebug) { console.log(`Added to classpath: ${libPath}`); }
+      } catch (error) {
+        if (options?.enableDebug) { console.warn(`Librería no encontrada: ${libPath}`); }
+      }
+    }
+  }
+
+  const guavaLibraries = classpath.filter(path => path.includes('guava'));
+  if (guavaLibraries.length > 1 && options?.enableDebug) {
+    console.log(`[ ADVERTENCIA ]: Aun hay ${guavaLibraries.length} versiones de Guava:`);
+    guavaLibraries.forEach(lib => console.log(`   - ${lib}`));
+    const guava15 = classpath.find(path => path.includes('guava-15.0'));
+    if (guava15) {
+      const index = classpath.indexOf(guava15);
+      classpath.splice(index, 1);
+      libraryCount--;
+      console.log(`[ ELIMINADO ] No se añadio al classpath : ${guava15}`);
+    }
+  }
+
+  if (options?.enableDebug) {
+    try {
+      const nativeFiles = await fs.readdir(nativesDir);
+      console.log(`Archivos en directorio de nativas (${nativeFiles.length}):`);
+      nativeFiles.forEach(file => console.log(`   - ${file}`));
+      const os = getOS();
+      const arch = process.arch;
+      let criticalNatives: string[] = [];
+      switch (os) {
+        case 'windows':
+          if (arch === 'x64') {
+            criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8_64.dll'];
+          } else {
+            criticalNatives = ['lwjgl.dll', 'OpenAL32.dll', 'jinput-dx8.dll'];
+          }
+          break;
+          
+        case 'linux':
+          if (arch === 'x64') {
+            criticalNatives = [
+              'liblwjgl.so', 'liblwjgl64.so',
+              'libopenal.so', 'libopenal64.so',
+              'libjinput-linux.so', 'libjinput-linux64.so'
+            ];
+          } else {
+            criticalNatives = ['liblwjgl.so', 'libopenal.so', 'libjinput-linux.so'];
+          }
+          break;
+          
+        case 'osx':
+          criticalNatives = ['liblwjgl.dylib', 'libopenal.dylib', 'libjinput-osx.dylib'];
+          break;
+          
+        default:
+          criticalNatives = [];
+      }
+      
+      const missingNatives = criticalNatives.filter(native => {
+        if (os === 'linux') {
+          const baseName = native.replace('64', '');
+          const exists = nativeFiles.some(file => 
+            file === native || 
+            (file.includes(baseName) && file.endsWith('.so'))
+          );
+          return !exists;
+        }
+        return !nativeFiles.includes(native);
+      });
+      
+      if (missingNatives.length > 0) {
+        console.log(`[ ADVERTENCIA ]: Archivos nativos críticos faltantes para ${os} (${arch}):`);
+        console.log(` Esperados: ${criticalNatives.filter(n => !n.includes('64') || arch === 'x64').join(', ')}`);
+        console.log(` Encontrados: ${nativeFiles.join(', ')}`);
+        
+        const similarFiles = nativeFiles.filter(file => 
+          file.includes('lwjgl') || 
+          file.includes('openal') || 
+          file.includes('jinput')
+        );
+        if (similarFiles.length > 0) {
+           console.log(`Archivos similares encontrados: ${similarFiles.join(', ')}`);
+        }
+      } else {
+        console.log(`Sistema ${os} (${arch}): Nativos correctamente extraídos`);
+      }
+    } catch (error) {
+       console.warn(`No se pudo leer directorio de nativas: ${nativesDir}`, error);
+    }
+  }
+
+  if (options?.enableDebug) {
+    console.log(`Final classpath for ${version}:`);
+    classpath.forEach((path, index) => {
+      console.log(`  [${index + 1}] ${path}`);
+    });
+    
+    const lwjglLibraries = classpath.filter(path =>
+      path.includes('lwjgl') || path.includes('LWJGL')
+    );
+    console.log(`LWJGL libraries in classpath: ${lwjglLibraries.length}`);
+    lwjglLibraries.forEach(lib => console.log(`  - ${lib}`));
+  }
+
+  return { classpath, nativesDir, libraryCount };
+}
+
+function buildJVMArgs( options: LauncherOptions, manifest: VersionManifest, classpath: string[], nativesDir: string, emitter: EventEmitter ): string[] {
   const jvmArgs: string[] = [];
   
   const memory = options.memory;
@@ -1226,7 +1123,8 @@ function buildJVMArgs(
   if (memory?.max) jvmArgs.push(`-Xmx${memory.max}`);
 
   jvmArgs.push(`-Djava.library.path=${nativesDir}`);
-  
+  jvmArgs.push(`-Dorg.lwjgl.librarypath=${nativesDir}`);
+
   jvmArgs.push("-Dfml.ignoreInvalidMinecraftCertificates=true");
   jvmArgs.push("-Dfml.ignorePatchDiscrepancies=true");
   jvmArgs.push("-XX:+UseG1GC");

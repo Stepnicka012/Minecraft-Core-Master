@@ -1,6 +1,6 @@
 {
   "name": "minecraft-core-master",
-  "version": "1.2.3",
+  "version": "2.2.3",
   "description": "Núcleo avanzado para launchers de Minecraft. Descarga, instala y ejecuta versiones de Minecraft, assets, librerías, Java y loaders de forma automática y eficiente.",
   "engineStrict": true,
   "license": "MIT",
@@ -16,7 +16,7 @@
   "homepage": "https://github.com/Stepnicka012/minecraft-core-master#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Stepnicka012/minecraft-core-master.git"
+    "url": "git+https://github.com/Stepnicka012/minecraft-core-master.git"
   },
   "bugs": {
     "url": "https://github.com/Stepnicka012/minecraft-core-master/issues"

@@ -1,4 +1,3 @@
-// fabric-downloader.ts
 import * as http from 'http';
 import * as https from 'https';
 import * as fs from 'fs';
@@ -6,7 +5,7 @@ import * as path from 'path';
 import { URL } from 'url';
 import { EventEmitter } from 'events';
 
-interface FabricDownloaderOptions {
+export interface FabricDownloaderOptions {
   version: string;
   root: string;
   concurrency?: number;
@@ -40,7 +39,7 @@ interface DownloadTask {
   retries: number;
 }
 
-interface DownloadProgress {
+export interface DownloadProgress {
   total: number;
   downloaded: number;
   currentFile: string;
@@ -73,7 +72,6 @@ export class FabricDownloader extends EventEmitter {
     
     this.minecraftPath = path.resolve(options.root);
     
-    // Establecer límites de listeners
     this.setMaxListeners(50);
   }
 
@@ -119,7 +117,6 @@ export class FabricDownloader extends EventEmitter {
         throw new Error(`Too many redirects for ${url}`);
       }
 
-      // VERIFICAR SI EL ARCHIVO YA EXISTE ANTES DE DESCARGAR
       if (fs.existsSync(dest)) {
         const stats = fs.statSync(dest);
         if (stats.size > 0) {
@@ -141,13 +138,11 @@ export class FabricDownloader extends EventEmitter {
       }
 
       return new Promise((resolve, reject) => {
-        // Crear directorio si no existe
         const dir = path.dirname(dest);
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
         }
 
-        // CAMBIAR LA BANDERA DE 'wx' a 'w' para sobrescribir si existe
         const file = fs.createWriteStream(dest, { flags: 'w' });
         
         const client = url.startsWith('https') ? https : http;
@@ -185,7 +180,6 @@ export class FabricDownloader extends EventEmitter {
         const request = client.get(url, (res) => {
           const statusCode = res.statusCode || 0;
           
-          // Manejar redirecciones
           if ([301, 302, 303, 307, 308].includes(statusCode)) {
             const redirectUrl = res.headers.location;
             if (!redirectUrl) {
@@ -340,7 +334,6 @@ export class FabricDownloader extends EventEmitter {
         });
     }
 
-    // Esperar a que todas las descargas activas terminen
     if (this.activeDownloads.size > 0) {
       await Promise.all(this.activeDownloads);
     }
@@ -367,7 +360,7 @@ export class FabricDownloader extends EventEmitter {
     if (this.isDownloading && this.isPaused) {
       this.isPaused = false;
       this.emit('resumed');
-      this.processQueue(); // Reanudar procesamiento
+      this.processQueue();
     }
   }
 
@@ -395,7 +388,6 @@ export class FabricDownloader extends EventEmitter {
     this.emit('start');
 
     try {
-      // 1. Obtener versión del loader
       let loaderVersion = this.options.loaderVersion;
       if (!loaderVersion) {
         this.emit('fileStart', { name: 'Loader Metadata', type: 'loader', url: this.loaderApiUrl });
@@ -405,27 +397,22 @@ export class FabricDownloader extends EventEmitter {
 
       const versionId = this.getVersionId(loaderVersion);
       
-      // Verificar si ya está instalado
       const versionDir = path.join(this.minecraftPath, 'versions', versionId);
       const profilePath = path.join(versionDir, `${versionId}.json`);
       
       let profileJson: FabricProfile | null = null;
       let totalLibraries = 0;
-      
-      // GUARDAR EL PERFIL PRIMERO (sin añadir a la cola)
+    
       if (!fs.existsSync(profilePath)) {
-        // 2. Descargar perfil JSON
         const profileUrl = `${this.profileBaseUrl}/${this.options.version}/${loaderVersion}/profile/json`;
         
         this.emit('fileStart', { name: 'Profile JSON', type: 'profile', url: profileUrl });
         profileJson = await this.fetchJson<FabricProfile>(profileUrl);
         this.emit('fileComplete', { name: 'Profile JSON', type: 'profile' });
 
-        // Guardar perfil
         fs.mkdirSync(versionDir, { recursive: true });
         fs.writeFileSync(profilePath, JSON.stringify(profileJson, null, 2));
         
-        // 4. Agregar librerías a la cola
         if (Array.isArray(profileJson.libraries) && profileJson.libraries.length > 0) {
           totalLibraries = profileJson.libraries.length;
           for (const lib of profileJson.libraries) {
@@ -435,12 +422,11 @@ export class FabricDownloader extends EventEmitter {
             const fullUrl = urlBase.endsWith('/') ? urlBase + libPathUrl : `${urlBase}/${libPathUrl}`;
             const dest = path.join(this.minecraftPath, 'libraries', libPathFs);
 
-            // Saltar si ya existe
             if (fs.existsSync(dest)) {
               const stats = fs.statSync(dest);
               if (stats.size > 0) {
                 console.log(`[Skip] ${lib.name} ya existe.`);
-                totalLibraries--; // Reducir contador si ya existe
+                totalLibraries--;
                 continue;
               }
             }
@@ -460,10 +446,7 @@ export class FabricDownloader extends EventEmitter {
         return true;
       }
 
-      // 5. Procesar cola de descargas
       await this.processQueue();
-
-      // 6. Verificar si hay errores
       const hasErrors = this.listenerCount('fileError') > 0;
       
       if (!hasErrors) {
